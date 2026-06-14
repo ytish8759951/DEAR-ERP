@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 
-GEMINI_API_KEY = os.environ.get(GEMINI_API_KEY, ")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 
 def database_uri():
@@ -36,4 +36,4 @@ class Config:
     DEFAULT_PAGE_SIZE = 50
     PAGE_SIZE_OPTIONS = (50, 100, 200)
     LOW_STOCK_THRESHOLD = 5
-    GEMINI_API_KEY = os.environ.get(GEMINI_API_KEY, ")
+    GEMINI_API_KEY = GEMINI_API_KEY
