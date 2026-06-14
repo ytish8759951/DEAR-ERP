@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ title }}</h1>
+    <div class="text-secondary">此功能已建立入口與預留資料表，流程將於後續版本開發。</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('system.index', active_tab='employees') }}">返回員工管理</a>
+</div>
+
+<div class="bg-white border rounded p-5 text-center text-secondary">
+  <div class="h5 mb-2">空白入口頁</div>
+  <div>目前先保留功能入口，不處理實際申請、審核或打卡流程。</div>
+</div>
+{% endblock %}

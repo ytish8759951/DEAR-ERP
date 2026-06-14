@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .ajax-select { position: relative; }
+  .ajax-results {
+    position: absolute;
+    z-index: 1050;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background: #fff;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+  }
+  .ajax-result-item {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #f1f3f5;
+    background: #fff;
+    padding: 0.55rem 0.75rem;
+    text-align: left;
+  }
+  .ajax-result-item:hover,
+  .ajax-result-item:focus {
+    background: #f8f9fa;
+  }
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ "新增訂單" if is_create else "編輯訂單" }}</h1>
+    <div class="text-secondary">訂單編號 {{ "儲存時自動產生" if is_create else order.order_no }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('orders.index') }}">返回列表</a>
+</div>
+
+{% if wholesale_warning %}
+<div class="alert alert-warning">{{ wholesale_warning }}</div>
+{% endif %}
+{% if errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  {% if field_errors %}
+  <ul class="mb-0 mt-2">
+    {% for field, message in field_errors.items() %}
+      <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" action="{{ action }}" id="orderForm">
+  <section class="border rounded bg-white p-3 mb-4">
+    <h2 class="h5">訂單資料</h2>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">訂單編號</label>
+        <input class="form-control" value="{{ order.order_no or '自動產生' }}" readonly>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">訂單日期</label>
+        <input class="form-control" type="date" name="order_date" value="{{ order.order_date.isoformat() if order.order_date else '' }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">客戶</label>
+        <div class="ajax-select">
+          <input
+            class="form-control {% if field_errors['customer_id'] %}is-invalid{% endif %}"
+            id="customerSearchInput"
+            autocomplete="off"
+            placeholder="輸入客戶編號、客戶姓名或電話搜尋"
+            value="{{ (selected_customer.customer_code ~ ' ' ~ selected_customer.name) if selected_customer else '' }}"
+          >
+          <input type="hidden" name="customer_id" id="customerIdInput" value="{{ order.customer_id or '' }}" required>
+          <div class="ajax-results d-none" id="customerResults"></div>
+        </div>
+        {% if field_errors['customer_id'] %}<div class="text-danger small mt-1">{{ field_errors['customer_id'] }}</div>{% endif %}
+        <div class="form-text">輸入一個字即可搜尋，最多顯示 20 筆。</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">客源</label>
+        <select class="form-select {% if field_errors['order_source_id'] %}is-invalid{% endif %}" name="order_source_id" id="orderSourceSelect">
+          <option value="">未指定</option>
+          {% for source in order_sources %}
+          <option value="{{ source.id }}" data-source-name="{{ source.name }}" {% if order.order_source_id == source.id %}selected{% endif %}>{{ source.name }}</option>
+          {% endfor %}
+        </select>
+        {% if field_errors['order_source_id'] %}<div class="text-danger small mt-1">{{ field_errors['order_source_id'] }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">訂單狀態</label>
+        {% if order.status in ["預購中", "待出貨", "已完成", "部分退貨", "已退貨", "已取消"] %}
+          <div class="btn-group w-100 {% if field_errors['status'] %}border border-danger rounded{% endif %}" role="group" aria-label="訂單狀態">
+            <button class="btn btn-outline-secondary active" type="button" disabled>{{ order.status }}</button>
+            <input type="hidden" name="status" value="{{ order.status }}">
+          </div>
+        {% else %}
+          <div class="btn-group w-100" role="group" aria-label="訂單狀態">
+            <input class="btn-check" type="radio" name="status" id="statusPending" value="待付款" autocomplete="off" {% if (order.status or '待付款') == '待付款' %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="statusPending">待付款</label>
+            <input class="btn-check" type="radio" name="status" id="statusPaid" value="已付款" autocomplete="off" {% if order.status == '已付款' %}checked{% endif %}>
+            <label class="btn btn-outline-success" for="statusPaid">已付款</label>
+          </div>
+        {% endif %}
+        {% if field_errors['status'] %}<div class="text-danger small mt-1">{{ field_errors['status'] }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">折扣</label>
+        <input class="form-control" name="discount_amount" type="number" min="0" step="1" value="{{ '%.0f'|format(order.discount_amount or 0) }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">運費</label>
+        <input class="form-control" name="shipping_fee" type="number" min="0" step="1" value="{{ '%.0f'|format(order.shipping_fee or 0) }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label">備註</label>
+        <textarea class="form-control" name="note" rows="3">{{ order.note or "" }}</textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="border rounded bg-white p-3 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+      <div>
+        <h2 class="h5 mb-1">商品明細</h2>
+        <div class="text-secondary small">商品可用商品編號或商品名稱搜尋後加入。</div>
+      </div>
+      <div class="ajax-select" style="min-width: min(420px, 100%);">
+        <label class="form-label">商品搜尋</label>
+        <input class="form-control" id="productSearchInput" autocomplete="off" placeholder="輸入商品編號或商品名稱搜尋">
+        <div class="ajax-results d-none" id="productResults"></div>
+      </div>
+    </div>
+
+    <div class="table-responsive {% if field_errors['order_items'] %}border border-danger rounded p-2{% endif %}">
+      {% if field_errors['order_items'] %}<div class="text-danger small mb-2">{{ field_errors['order_items'] }}</div>{% endif %}
+      <table class="table table-sm align-middle order-items-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 76px;">商品圖片</th>
+            <th>商品編號</th>
+            <th>商品名稱</th>
+            <th>顏色</th>
+            <th>尺寸</th>
+            <th class="text-end">目前庫存</th>
+            <th class="text-end">訂購數量</th>
+            <th class="text-end">單價</th>
+            <th class="text-end">小計</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody id="orderItemRows">
+          {% for item in order.items %}
+          <tr data-variant-id="{{ item.product_variant_id }}" data-supply-mode="{{ item.product.supply_mode if item.product else '' }}">
+            <td>
+              {% if item.product and item.product.image_path %}
+                <img
+                  class="order-product-thumb product-preview-trigger"
+                  src="{{ url_for('static', filename=item.product.image_path) }}"
+                  data-preview-src="{{ url_for('static', filename=item.product.image_path) }}"
+                  alt="{{ item.product.name }}"
+                >
+              {% else %}
+                <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+              {% endif %}
+            </td>
+            <td>
+              <input type="hidden" name="variant_id" value="{{ item.product_variant_id }}">
+              {{ item.product.sku }}
+            </td>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}</td>
+            <td>{{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}</td>
+            {% set available_stock = (item.product_variant.stock if item.product_variant else 0) + item.quantity %}
+            <td class="text-end order-stock" data-stock="{{ available_stock }}">
+              {% if available_stock > 0 %}{{ available_stock }}{% else %}<span class="text-danger">缺貨</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <input class="form-control form-control-sm text-end order-qty" type="number" name="quantity_{{ item.product_variant_id }}" min="1" value="{{ item.quantity }}">
+              <div class="stock-warning text-danger small mt-1 d-none"></div>
+            </td>
+            <td class="text-end">
+              <input class="form-control form-control-sm text-end order-price" type="number" name="unit_price_{{ item.product_variant_id }}" min="0" step="1" value="{{ '%.0f'|format(item.unit_price or 0) }}">
+            </td>
+            <td class="text-end order-subtotal">${{ "%.0f"|format(item.subtotal or 0) }}</td>
+            <td class="text-end"><button class="btn btn-sm btn-outline-danger remove-order-item" type="button">移除</button></td>
+          </tr>
+          {% else %}
+          <tr id="emptyOrderItemsRow"><td colspan="10" class="text-center text-secondary py-3">尚未加入商品，請使用商品搜尋加入。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="d-flex justify-content-end gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('orders.index') }}">取消</a>
+    <button class="btn btn-dark" type="submit">儲存訂單</button>
+  </div>
+</form>
+
+<div class="product-hover-preview order-hover-preview" id="productHoverPreview" data-preview-size="240" aria-hidden="true">
+  <img src="" alt="">
+</div>
+
+<script>
+  window.orderAjaxUrls = {
+    customers: "{{ url_for('orders.search_customers') }}",
+    products: "{{ url_for('orders.search_products') }}"
+  };
+  window.orderWholesaleSourceId = "{{ wholesale_source.id if wholesale_source else '' }}";
+  window.orderSelectedCustomerWholesalePaid = {{ "true" if selected_customer and selected_customer.wholesale_paid else "false" }};
+</script>
+<script>
+(() => {
+  const customerInput = document.getElementById("customerSearchInput");
+  const customerIdInput = document.getElementById("customerIdInput");
+  const customerResults = document.getElementById("customerResults");
+  const orderSourceSelect = document.getElementById("orderSourceSelect");
+  const productInput = document.getElementById("productSearchInput");
+  const productResults = document.getElementById("productResults");
+  const rows = document.getElementById("orderItemRows");
+  const orderForm = document.getElementById("orderForm");
+  const submitButton = orderForm?.querySelector('button[type="submit"]');
+  let selectedCustomerWholesalePaid = Boolean(window.orderSelectedCustomerWholesalePaid);
+  const wholesaleSourceId = String(window.orderWholesaleSourceId || "");
+  const wholesaleBlockedMessage = "此客戶尚未繳交批發資格費 2000 元，不能選擇批發客。";
+
+  function debounce(fn, delay = 220) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  function hideResults(element) {
+    element.classList.add("d-none");
+    element.innerHTML = "";
+  }
+
+  async function fetchResults(url, keyword) {
+    const response = await fetch(`${url}?q=${encodeURIComponent(keyword)}`, {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin"
+    });
+    if (!response.ok) return [];
+    return response.json();
+  }
+
+  function renderCustomerResults(customers) {
+    if (!customers.length) {
+      customerResults.innerHTML = '<div class="p-3 text-secondary">沒有符合的客戶</div>';
+      customerResults.classList.remove("d-none");
+      return;
+    }
+    customerResults.innerHTML = customers.map((customer) => `
+      <button class="ajax-result-item customer-result" type="button"
+        data-id="${customer.id}"
+        data-label="${escapeHtml(customer.label)}"
+        data-wholesale-paid="${customer.wholesale_paid ? "1" : "0"}">
+        <div class="fw-semibold">${escapeHtml(customer.customer_code)} ${escapeHtml(customer.name)}</div>
+        <div class="text-secondary small">${escapeHtml(customer.phone || "-")}</div>
+      </button>
+    `).join("");
+    customerResults.classList.remove("d-none");
+  }
+
+  function renderProductResults(products) {
+    if (!products.length) {
+      productResults.innerHTML = '<div class="p-3 text-secondary">沒有符合的商品</div>';
+      productResults.classList.remove("d-none");
+      return;
+    }
+    productResults.innerHTML = products.map((product) => `
+      <button class="ajax-result-item product-result" type="button"
+        data-variant-id="${product.variant_id}"
+        data-sku="${escapeHtml(product.sku)}"
+        data-name="${escapeHtml(product.name)}"
+        data-color="${escapeHtml(product.color || "-")}"
+        data-size="${escapeHtml(product.size || "-")}"
+        data-stock="${product.stock}"
+        data-price="${product.price}"
+        data-supply-mode="${escapeHtml(product.supply_mode || "")}"
+        data-image-url="${escapeHtml(product.image_url || "")}">
+        <div class="fw-semibold">${escapeHtml(product.sku)} ${escapeHtml(product.name)}</div>
+        <div class="text-secondary small">${escapeHtml(product.color || "-")} / ${escapeHtml(product.size || "-")}，庫存 ${product.stock}</div>
+      </button>
+    `).join("");
+    productResults.classList.remove("d-none");
+  }
+
+  const searchCustomers = debounce(async () => {
+    const keyword = customerInput.value.trim();
+    customerIdInput.value = "";
+    if (!keyword) {
+      hideResults(customerResults);
+      return;
+    }
+    renderCustomerResults(await fetchResults(window.orderAjaxUrls.customers, keyword));
+  });
+
+  const searchProducts = debounce(async () => {
+    const keyword = productInput.value.trim();
+    if (!keyword) {
+      hideResults(productResults);
+      return;
+    }
+    renderProductResults(await fetchResults(window.orderAjaxUrls.products, keyword));
+  });
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function removeEmptyRow() {
+    document.getElementById("emptyOrderItemsRow")?.remove();
+  }
+
+  function isWholesaleSourceSelected() {
+    if (!orderSourceSelect) return false;
+    const selected = orderSourceSelect.options[orderSourceSelect.selectedIndex];
+    return String(orderSourceSelect.value) === wholesaleSourceId || selected?.dataset.sourceName === "批發客";
+  }
+
+  function applyCustomerSourceRule() {
+    if (!orderSourceSelect) return;
+    if (selectedCustomerWholesalePaid && wholesaleSourceId) {
+      orderSourceSelect.value = wholesaleSourceId;
+      return;
+    }
+    if (!selectedCustomerWholesalePaid && isWholesaleSourceSelected()) {
+      orderSourceSelect.value = "";
+      window.alert(wholesaleBlockedMessage);
+    }
+  }
+
+  function updateSubtotal(row) {
+    const qty = Number(row.querySelector(".order-qty")?.value || 0);
+    const price = Number(row.querySelector(".order-price")?.value || 0);
+    row.querySelector(".order-subtotal").textContent = `$${Math.max(0, qty * price).toFixed(0)}`;
+  }
+
+  function validateStockRow(row) {
+    const stock = Number(row.querySelector(".order-stock")?.dataset.stock || 0);
+    const qtyInput = row.querySelector(".order-qty");
+    const warning = row.querySelector(".stock-warning");
+    if (!qtyInput || !warning) return true;
+
+    qtyInput.disabled = false;
+    const qty = Number(qtyInput.value || 0);
+    const isClearance = row.dataset.supplyMode === "出清商品";
+    if (isClearance && qty > stock) {
+      qtyInput.classList.add("is-invalid");
+      warning.textContent = "出清商品庫存不足，請修改數量或取消商品";
+      warning.classList.remove("d-none");
+      return false;
+    }
+    if (qty > stock) {
+      qtyInput.classList.remove("is-invalid");
+      warning.textContent = `庫存不足，目前庫存：${stock} 件，超出數量將自動產生待貨`;
+      warning.classList.remove("d-none");
+      return true;
+    }
+
+    qtyInput.classList.remove("is-invalid");
+    warning.textContent = "";
+    warning.classList.add("d-none");
+    return true;
+  }
+
+  function validateAllStockRows() {
+    const allValid = Array.from(rows.querySelectorAll("tr[data-variant-id]")).every(validateStockRow);
+    if (submitButton) {
+      submitButton.disabled = !allValid;
+    }
+    return allValid;
+  }
+
+  function addProductRow(product) {
+    if (rows.querySelector(`[data-variant-id="${product.variantId}"]`)) {
+      hideResults(productResults);
+      productInput.value = "";
+      return;
+    }
+
+    removeEmptyRow();
+    const row = document.createElement("tr");
+    row.dataset.variantId = product.variantId;
+    row.dataset.supplyMode = product.supplyMode || "";
+    const imageCell = product.imageUrl
+      ? `<img class="order-product-thumb product-preview-trigger" src="${escapeHtml(product.imageUrl)}" data-preview-src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.name)}">`
+      : '<div class="order-product-thumb order-placeholder-thumb">無圖</div>';
+    row.innerHTML = `
+      <td>${imageCell}</td>
+      <td>
+        <input type="hidden" name="variant_id" value="${product.variantId}">
+        ${escapeHtml(product.sku)}
+      </td>
+      <td>${escapeHtml(product.name)}</td>
+      <td>${escapeHtml(product.color)}</td>
+      <td>${escapeHtml(product.size)}</td>
+      <td class="text-end order-stock" data-stock="${product.stock}">${product.stock > 0 ? product.stock : '<span class="text-danger">缺貨</span>'}</td>
+      <td class="text-end">
+        <input class="form-control form-control-sm text-end order-qty" type="number" name="quantity_${product.variantId}" min="1" value="1">
+        <div class="stock-warning text-danger small mt-1 ${product.stock > 0 ? "d-none" : ""}">${product.stock > 0 ? "" : "缺貨，將自動產生待貨"}</div>
+      </td>
+      <td class="text-end">
+        <input class="form-control form-control-sm text-end order-price" type="number" name="unit_price_${product.variantId}" min="0" step="1" value="${Number(product.price).toFixed(0)}">
+      </td>
+      <td class="text-end order-subtotal">$${Number(product.price).toFixed(0)}</td>
+      <td class="text-end"><button class="btn btn-sm btn-outline-danger remove-order-item" type="button">移除</button></td>
+    `;
+    rows.appendChild(row);
+    validateAllStockRows();
+    hideResults(productResults);
+    productInput.value = "";
+  }
+
+  customerInput?.addEventListener("input", searchCustomers);
+  productInput?.addEventListener("input", searchProducts);
+  orderSourceSelect?.addEventListener("change", () => {
+    if (!selectedCustomerWholesalePaid && isWholesaleSourceSelected()) {
+      orderSourceSelect.value = "";
+      window.alert(wholesaleBlockedMessage);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const customer = event.target.closest(".customer-result");
+    if (customer) {
+      customerIdInput.value = customer.dataset.id;
+      customerInput.value = customer.dataset.label;
+      selectedCustomerWholesalePaid = customer.dataset.wholesalePaid === "1";
+      hideResults(customerResults);
+      applyCustomerSourceRule();
+      return;
+    }
+
+    const product = event.target.closest(".product-result");
+    if (product) {
+      addProductRow({
+        variantId: product.dataset.variantId,
+        sku: product.dataset.sku,
+        name: product.dataset.name,
+        color: product.dataset.color,
+        size: product.dataset.size,
+        stock: Number(product.dataset.stock || 0),
+        price: Number(product.dataset.price || 0),
+        supplyMode: product.dataset.supplyMode || "",
+        imageUrl: product.dataset.imageUrl || ""
+      });
+      return;
+    }
+
+    if (!event.target.closest(".ajax-select")) {
+      hideResults(customerResults);
+      hideResults(productResults);
+    }
+  });
+
+  rows?.addEventListener("input", (event) => {
+    const row = event.target.closest("tr[data-variant-id]");
+    if (row && (event.target.matches(".order-qty") || event.target.matches(".order-price"))) {
+      updateSubtotal(row);
+      validateStockRow(row);
+      validateAllStockRows();
+    }
+  });
+
+  rows?.addEventListener("click", (event) => {
+    const removeButton = event.target.closest(".remove-order-item");
+    if (!removeButton) return;
+    removeButton.closest("tr")?.remove();
+    if (!rows.querySelector("tr[data-variant-id]")) {
+      rows.innerHTML = '<tr id="emptyOrderItemsRow"><td colspan="10" class="text-center text-secondary py-3">尚未加入商品，請使用商品搜尋加入。</td></tr>';
+    }
+    if (!validateAllStockRows()) {
+      event.preventDefault();
+    }
+  });
+
+  orderForm?.addEventListener("submit", (event) => {
+    if (!selectedCustomerWholesalePaid && isWholesaleSourceSelected()) {
+      event.preventDefault();
+      orderSourceSelect.focus();
+      orderSourceSelect.value = "";
+      window.alert(wholesaleBlockedMessage);
+      return;
+    }
+    validateAllStockRows();
+  });
+  validateAllStockRows();
+})();
+</script>
+{% endblock %}

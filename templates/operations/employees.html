@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 mb-0">員工列表</h1>
+  <form method="get" class="d-flex align-items-center gap-2">
+    <label class="form-label mb-0">每頁</label>
+    <select class="form-select form-select-sm" name="per_page" onchange="this.form.submit()">
+      {% for size in page_size_options %}
+        <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light"><tr><th>姓名</th><th>電話</th><th>Email</th><th>角色</th><th>狀態</th></tr></thead>
+    <tbody>
+      {% for employee in employees %}
+      <tr><td>{{ employee.name }}</td><td>{{ employee.phone or "-" }}</td><td>{{ employee.email or "-" }}</td><td>{{ employee.role or "-" }}</td><td>{{ "啟用" if employee.is_active else "停用" }}</td></tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-secondary py-5">尚無員工資料</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "operations/_pagination.html" %}
+{% endblock %}

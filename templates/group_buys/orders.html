@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div><h1 class="h3 mb-1">團購訂單</h1><div class="text-secondary">查詢、查看與轉正式訂單</div></div>
+</div>
+
+<section class="border rounded bg-white p-3 mb-4">
+  <form method="get" action="{{ url_for('group_buys.orders') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3"><label class="form-label">團購訂單編號</label><input class="form-control" name="order_no" value="{{ filters.order_no }}"></div>
+      <div class="col-md-3"><label class="form-label">團購編號</label><input class="form-control" name="group_buy_no" value="{{ filters.group_buy_no }}"></div>
+      <div class="col-md-3"><label class="form-label">團購名稱</label><input class="form-control" name="group_buy_name" value="{{ filters.group_buy_name }}"></div>
+      <div class="col-md-3"><label class="form-label">客戶名稱</label><input class="form-control" name="customer_name" value="{{ filters.customer_name }}"></div>
+      <div class="col-md-3"><label class="form-label">批客編號</label><input class="form-control" name="customer_code" value="{{ filters.customer_code }}"></div>
+      <div class="col-md-3"><label class="form-label">手機</label><input class="form-control" name="phone" value="{{ filters.phone }}"></div>
+      <div class="col-md-3"><label class="form-label">商品編號</label><input class="form-control" name="product_code" value="{{ filters.product_code }}"></div>
+      <div class="col-md-3"><label class="form-label">商品名稱</label><input class="form-control" name="product_name" value="{{ filters.product_name }}"></div>
+      <div class="col-md-3"><label class="form-label">團購狀態</label><select class="form-select" name="group_status"><option value="">全部</option>{% for status in group_statuses %}<option value="{{ status }}" {% if filters.group_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">轉單狀態</label><select class="form-select" name="status"><option value="">全部</option>{% for status in transfer_statuses %}<option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">建立日期起</label><input class="form-control" type="date" name="date_start" value="{{ filters.date_start }}"></div>
+      <div class="col-md-3"><label class="form-label">建立日期迄</label><input class="form-control" type="date" name="date_end" value="{{ filters.date_end }}"></div>
+      <div class="col-12 d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('group_buys.orders') }}">重設</a><button class="btn btn-dark" type="submit">查詢</button></div>
+    </div>
+  </form>
+</section>
+
+<form method="post" action="{{ url_for('group_buys.convert_batch') }}">
+<div class="d-flex justify-content-end gap-2 mb-2">
+  <button class="btn btn-outline-dark btn-sm" type="submit">勾選轉單</button>
+</div>
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light"><tr><th><input type="checkbox" onclick="document.querySelectorAll('.gb-order-check').forEach(x=>x.checked=this.checked)"></th><th>團購訂單編號</th><th>團購編號</th><th>團購名稱</th><th>客戶名稱</th><th>批客編號</th><th>LINE名稱</th><th>手機</th><th class="text-end">商品數</th><th class="text-end">總件數</th><th class="text-end">總金額</th><th>團購狀態</th><th>轉單狀態</th><th>建立時間</th><th class="text-end">操作</th></tr></thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td>{% if order.order_status == "未轉訂單" %}<input class="gb-order-check" type="checkbox" name="order_ids" value="{{ order.id }}">{% endif %}</td>
+        <td class="fw-semibold">{{ order.order_no }} {% if order.is_test_order %}<span class="badge text-bg-warning ms-1">測試</span>{% endif %}</td><td>{{ order.group_buy.group_buy_no if order.group_buy else "-" }}</td><td>{{ order.group_buy.name if order.group_buy else "-" }}</td>
+        <td>{{ order.customer_name }}</td><td>{{ order.customer_code }}</td><td>{{ order.line_name or "-" }}</td><td>{{ order.phone }}</td>
+        <td class="text-end">{{ order.items|length }}</td><td class="text-end">{{ item_total(order) }}</td><td class="text-end">${{ "%.0f"|format(order_total(order) or 0) }}</td>
+        <td>{{ order.group_buy.status if order.group_buy else "-" }}</td><td>{{ order.order_status }}</td><td>{{ order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "-" }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('group_buys.order_detail', order_id=order.id) }}">查看</a>
+          {% if order.order_status == "未轉訂單" %}
+          <form class="d-inline" method="post" action="{{ url_for('group_buys.convert_order', order_id=order.id) }}"><button class="btn btn-sm btn-outline-primary" type="submit">轉訂單</button></form>
+          <form class="d-inline" method="post" action="{{ url_for('group_buys.cancel_order', order_id=order.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit">取消</button></form>
+          {% elif order.formal_order_id %}
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('orders.detail', order_id=order.formal_order_id) }}">查看正式訂單</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="15" class="text-center text-secondary py-5">尚無團購訂單。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</form>
+{% include "group_buys/_pagination.html" %}
+{% endblock %}

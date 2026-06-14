@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">追貨中心</h1>
+    <div class="text-secondary">待建立清單只顯示尚未被追貨單涵蓋的可追貨數量，歷史追貨單永久保留。</div>
+  </div>
+  <button class="btn btn-dark" type="button" data-bs-toggle="modal" data-bs-target="#createReplenishmentModal">建立追貨單</button>
+</div>
+
+<section class="border rounded bg-white p-3 mb-4">
+  <form method="get" action="{{ url_for('replenishment.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">商品編號</label>
+        <input class="form-control" name="sku" value="{{ filters.sku }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">商品名稱</label>
+        <input class="form-control" name="name" value="{{ filters.name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">廠商</label>
+        <select class="form-select" name="supplier_id">
+          <option value="">全部</option>
+          {% for supplier in suppliers %}
+          <option value="{{ supplier.id }}" {% if filters.supplier_id == supplier.id|string %}selected{% endif %}>{{ supplier.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">追貨狀態</label>
+        <select class="form-select" name="status">
+          {% for value, label in status_options %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁筆數</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+          <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('replenishment.index') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section class="mb-5">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="h5 mb-1">一、待建立追貨清單</h2>
+      <div class="text-secondary small">可追貨數量 = 待貨數量 - 未完成追貨單已佔用數量。已建立追貨單的商品不再顯示。</div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle bg-white">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 76px;">商品圖片</th>
+          <th>商品編號</th>
+          <th>商品名稱</th>
+          <th>顏色</th>
+          <th>尺寸</th>
+          <th>追貨單類型</th>
+          <th class="text-end">廠商數</th>
+          <th class="text-end">可追貨數量</th>
+          <th>狀態</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for variant, available_quantity in rows %}
+        <tr>
+          <td>
+            {% if variant.product.image_path %}
+            <img class="order-product-thumb product-preview-trigger" src="{{ url_for('static', filename=variant.product.image_path) }}" data-preview-src="{{ url_for('static', filename=variant.product.image_path) }}" alt="{{ variant.product.name }}">
+            {% else %}
+            <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+            {% endif %}
+          </td>
+          <td class="fw-semibold">{{ variant.product.sku }}</td>
+          <td>{{ variant.product.name }}</td>
+          <td>{{ variant.color.name if variant.color else "-" }}</td>
+          <td>{{ variant.size.name if variant.size else "-" }}</td>
+          <td>{{ variant.product.supplier.name if variant.product.supplier else "未指定廠商" }}</td>
+          <td class="text-end">{{ available_quantity }}</td>
+          <td><span class="badge text-bg-warning">待建立</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-secondary py-5">目前沒有尚未建立追貨單的可追貨商品。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+    <div class="text-secondary small">共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁</div>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('replenishment.index', page=pagination.prev_num, order_page=order_pagination.page, per_page=pagination.per_page, sku=filters.sku, name=filters.name, supplier_id=filters.supplier_id, status=filters.status) }}">上一頁</a>
+        </li>
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('replenishment.index', page=pagination.next_num, order_page=order_pagination.page, per_page=pagination.per_page, sku=filters.sku, name=filters.name, supplier_id=filters.supplier_id, status=filters.status) }}">下一頁</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="h5 mb-1">二、追貨單紀錄</h2>
+      <div class="text-secondary small">顯示所有已建立追貨單，包含追貨中、部分到貨、已完成、已取消。</div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>追貨單號</th>
+          <th>建立日期</th>
+          <th>廠商</th>
+          <th class="text-end">商品款數</th>
+          <th class="text-end">追貨總數量</th>
+          <th class="text-end">已到貨數量</th>
+          <th class="text-end">未到貨數量</th>
+          <th>狀態</th>
+          <th class="text-end">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in replenishment_orders %}
+        {% set total_required = order.items|sum(attribute='required_quantity') %}
+        {% set total_received = order.items|sum(attribute='received_quantity') %}
+        {% set total_remaining = order.items|sum(attribute='remaining_quantity') %}
+        <tr>
+          <td class="fw-semibold">{{ order.order_no }}</td>
+          <td>{{ order.created_at.strftime("%Y-%m-%d") if order.created_at else "-" }}</td>
+          <td>{{ order.supplier.name if order.supplier else "綜合追貨單" }}</td>
+          <td class="text-end">{{ order_summaries[order.id].supplier_count }}</td>
+          <td class="text-end">{{ order_summaries[order.id].item_count }}</td>
+          <td class="text-end">{{ order_summaries[order.id].required_quantity }}</td>
+          <td class="text-end">{{ order_summaries[order.id].received_quantity }}</td>
+          <td class="text-end">{{ order_summaries[order.id].remaining_quantity }}</td>
+          <td>
+            {% if order.status in ["已完成", "已到貨"] %}
+            <span class="badge text-bg-success">已完成</span>
+            {% elif order.status == "已取消" %}
+            <span class="badge text-bg-secondary">已取消</span>
+            {% elif order.status == "部分到貨" %}
+            <span class="badge text-bg-warning">部分到貨</span>
+            {% else %}
+            <span class="badge text-bg-info">追貨中</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('replenishment.detail', order_id=order.id) }}">查看</a>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#editNote{{ order.id }}">編輯備註</button>
+            {% if order.status not in ["已完成", "已到貨", "已取消"] %}
+            <form class="d-inline" method="post" action="{{ url_for('replenishment.cancel', order_id=order.id) }}" onsubmit="return confirm('確定取消此追貨單？未到貨數量會釋放回待建立追貨清單。')">
+              <button class="btn btn-sm btn-outline-danger" type="submit">取消追貨單</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center text-secondary py-4">尚無追貨單紀錄。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+    <div class="text-secondary small">共 {{ order_pagination.total }} 筆，第 {{ order_pagination.page }} / {{ order_pagination.pages or 1 }} 頁</div>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not order_pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('replenishment.index', page=pagination.page, order_page=order_pagination.prev_num, per_page=order_pagination.per_page, sku=filters.sku, name=filters.name, supplier_id=filters.supplier_id, status=filters.status) }}">上一頁</a>
+        </li>
+        <li class="page-item {% if not order_pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('replenishment.index', page=pagination.page, order_page=order_pagination.next_num, per_page=order_pagination.per_page, sku=filters.sku, name=filters.name, supplier_id=filters.supplier_id, status=filters.status) }}">下一頁</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</section>
+
+<div class="modal fade" id="createReplenishmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('replenishment.create') }}">
+      <div class="modal-header">
+        <h2 class="modal-title h5">建立追貨單</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          系統會自動抓取待建立追貨清單中的可追貨商品，並依廠商分組建立追貨單。
+        </div>
+        <div class="mb-3">
+          <label class="form-label">預計到貨日</label>
+          <input class="form-control" type="date" name="expected_arrival_date">
+        </div>
+        <div>
+          <label class="form-label">備註</label>
+          <textarea class="form-control" name="note" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-dark" type="submit">建立</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% for order in replenishment_orders %}
+<div class="modal fade" id="editNote{{ order.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('replenishment.update_note', order_id=order.id) }}">
+      <div class="modal-header">
+        <h2 class="modal-title h5">編輯備註 {{ order.order_no }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <textarea class="form-control" name="note" rows="4">{{ order.note or "" }}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-dark" type="submit">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+
+<div class="product-hover-preview order-hover-preview" id="productHoverPreview" data-preview-size="240" aria-hidden="true">
+  <img src="" alt="">
+</div>
+{% endblock %}

@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+
+{% macro status_badge(enabled) %}
+  <span class="badge text-bg-{{ 'success' if enabled else 'secondary' }}">{{ "啟用" if enabled else "停用" }}</span>
+{% endmacro %}
+
+{% macro customer_form(action, customer=None) %}
+<form method="post" action="{{ action }}">
+  <div class="row g-3">
+    {% if customer %}
+    <div class="col-md-6">
+      <label class="form-label">客戶編號</label>
+      <input class="form-control" value="{{ customer.customer_code or '' }}" readonly>
+    </div>
+    {% endif %}
+    <div class="col-md-6">
+      <label class="form-label">客戶姓名</label>
+      <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ customer.name if customer else '' }}" required>
+      {% if system_field_errors['name'] %}<div class="text-danger small mt-1">{{ system_field_errors['name'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">客戶分類</label>
+      <select class="form-select {% if system_field_errors['category_id'] %}is-invalid{% endif %}" name="category_id">
+        <option value="">未分類</option>
+        {% for category in active_categories %}
+          <option value="{{ category.id }}" {% if customer and customer.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+      {% if system_field_errors['category_id'] %}<div class="text-danger small mt-1">{{ system_field_errors['category_id'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">電話</label>
+      <input class="form-control" name="phone" value="{{ customer.phone if customer else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">LINE</label>
+      <input class="form-control" name="line" value="{{ customer.line if customer else '' }}">
+    </div>
+    <div class="col-md-6">
+      <div class="form-check mt-4">
+        <input class="form-check-input" type="checkbox" name="wholesale_paid" value="1" id="wholesalePaid{{ customer.id if customer else 'New' }}" {% if customer and customer.wholesale_paid %}checked{% endif %}>
+        <label class="form-check-label" for="wholesalePaid{{ customer.id if customer else 'New' }}">已繳批發金</label>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">批發金繳費日期</label>
+      <input class="form-control" name="wholesale_paid_date" type="date" value="{{ customer.wholesale_paid_date.isoformat() if customer and customer.wholesale_paid_date else '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">地址</label>
+      <input class="form-control" name="address" value="{{ customer.address if customer else '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">備註</label>
+      <textarea class="form-control" name="note" rows="3">{{ customer.note if customer else '' }}</textarea>
+    </div>
+  </div>
+  <div class="modal-footer px-0 pb-0">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+    <button type="submit" class="btn btn-dark">儲存</button>
+  </div>
+</form>
+{% endmacro %}
+
+{% macro employee_form(action, employee=None) %}
+<form method="post" action="{{ action }}">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">員工姓名</label>
+      <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ employee.name if employee else '' }}" required>
+      {% if system_field_errors['name'] %}<div class="text-danger small mt-1">{{ system_field_errors['name'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">角色</label>
+      <select class="form-select {% if system_field_errors['role_id'] %}is-invalid{% endif %}" name="role_id">
+        <option value="">未指定</option>
+        {% for role in active_roles %}
+          <option value="{{ role.id }}" {% if employee and employee.role_id == role.id %}selected{% endif %}>{{ role.name }}</option>
+        {% endfor %}
+      </select>
+      {% if system_field_errors['role_id'] %}<div class="text-danger small mt-1">{{ system_field_errors['role_id'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">登入帳號</label>
+      <input class="form-control {% if system_field_errors['login_username'] %}is-invalid{% endif %}" name="login_username" value="{{ employee.login_username if employee else '' }}">
+      {% if system_field_errors['login_username'] %}<div class="text-danger small mt-1">{{ system_field_errors['login_username'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">登入密碼</label>
+      <input class="form-control {% if system_field_errors['login_password'] %}is-invalid{% endif %}" name="login_password" type="password" placeholder="{{ '留空則不變更密碼' if employee else '' }}">
+      {% if system_field_errors['login_password'] %}<div class="text-danger small mt-1">{{ system_field_errors['login_password'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">電話</label>
+      <input class="form-control" name="phone" value="{{ employee.phone if employee else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Email</label>
+      <input class="form-control" name="email" type="email" value="{{ employee.email if employee else '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">狀態</label>
+      {% set enabled = employee.is_active if employee else True %}
+      <select class="form-select" name="is_active">
+        <option value="1" {% if enabled %}selected{% endif %}>啟用</option>
+        <option value="0" {% if not enabled %}selected{% endif %}>停用</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">到職日期</label>
+      <input class="form-control" name="hire_date" type="date" value="{{ employee.hire_date.isoformat() if employee and employee.hire_date else '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">離職日期</label>
+      <input class="form-control" name="resign_date" type="date" value="{{ employee.resign_date.isoformat() if employee and employee.resign_date else '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">備註</label>
+      <textarea class="form-control" name="note" rows="3">{{ employee.note if employee else '' }}</textarea>
+    </div>
+  </div>
+  <div class="modal-footer px-0 pb-0">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+    <button type="submit" class="btn btn-dark">儲存</button>
+  </div>
+</form>
+{% endmacro %}
+
+{% macro supplier_form(action, supplier=None) %}
+<form method="post" action="{{ action }}">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">廠商名稱</label>
+      <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ supplier.name if supplier else '' }}" required>
+      {% if system_field_errors['name'] %}<div class="text-danger small mt-1">{{ system_field_errors['name'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">聯絡人</label>
+      <input class="form-control" name="contact_person" value="{{ supplier.contact_person if supplier else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">電話</label>
+      <input class="form-control" name="phone" value="{{ supplier.phone if supplier else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">LINE</label>
+      <input class="form-control" name="line" value="{{ supplier.line if supplier else '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">地址</label>
+      <input class="form-control" name="address" value="{{ supplier.address if supplier else '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">備註</label>
+      <textarea class="form-control" name="note" rows="3">{{ supplier.note if supplier else '' }}</textarea>
+    </div>
+  </div>
+  <div class="modal-footer px-0 pb-0">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+    <button type="submit" class="btn btn-dark">儲存</button>
+  </div>
+</form>
+{% endmacro %}
+
+{% macro master_table(title, items, create_endpoint, update_endpoint, deactivate_endpoint, id_name) %}
+<div class="mb-4">
+  <h3 class="h6">{{ title }}</h3>
+  <form method="post" action="{{ create_endpoint }}" class="input-group mb-3">
+    <input class="form-control" name="name" placeholder="新增{{ title }}" required>
+    <button class="btn btn-dark" type="submit">新增</button>
+  </form>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light"><tr><th>名稱</th><th>狀態</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>
+            <form id="{{ id_name }}Form{{ item.id }}" method="post" action="{{ update_endpoint(item.id) }}" class="d-flex gap-2">
+              <input class="form-control form-control-sm" name="name" value="{{ item.name }}" required>
+              <select class="form-select form-select-sm w-auto" name="is_active">
+                <option value="1" {% if item.is_active %}selected{% endif %}>啟用</option>
+                <option value="0" {% if not item.is_active %}selected{% endif %}>停用</option>
+              </select>
+            </form>
+          </td>
+          <td>{{ status_badge(item.is_active) }}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" form="{{ id_name }}Form{{ item.id }}" type="submit">儲存</button>
+            {% if item.is_active %}
+            <form class="d-inline" method="post" action="{{ deactivate_endpoint(item.id) }}">
+              <button class="btn btn-sm btn-outline-secondary" type="submit">停用</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center text-secondary py-3">尚無資料</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">系統管理</h1>
+  <div class="text-secondary">客戶、員工、廠商與基礎資料主檔整合管理</div>
+</div>
+{% if system_errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  {% if system_field_errors %}
+  <ul class="mb-0 mt-2">
+    {% for field, message in system_field_errors.items() %}
+    <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<ul class="nav nav-tabs" id="systemTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'customers' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#customers" type="button">客戶管理</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'employees' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#employees" type="button">員工管理</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'suppliers' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#suppliers" type="button">廠商管理</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'basic' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#basic" type="button">基礎資料設定</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'ai' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#ai" type="button">AI設定</button>
+  </li>
+</ul>
+
+<div class="tab-content bg-white border border-top-0 p-3 p-lg-4">
+  <section class="tab-pane fade {% if active_tab == 'customers' %}show active{% endif %}" id="customers">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0">客戶管理</h2>
+      <button class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#createCustomerModal">新增客戶</button>
+    </div>
+    <form method="get" action="{{ url_for('system.index') }}" class="border rounded p-3 mb-3">
+      <input type="hidden" name="active_tab" value="customers">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">客戶編號</label>
+          <input class="form-control" name="customer_code" value="{{ filters.customer_code }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">客戶名稱</label>
+          <input class="form-control" name="customer_name" value="{{ filters.customer_name }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">客戶分類</label>
+          <select class="form-select" name="customer_category_id">
+            <option value="">全部</option>
+            {% for category in active_categories %}
+              <option value="{{ category.id }}" {% if filters.customer_category_id == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">已繳批發金</label>
+          <select class="form-select" name="customer_wholesale_paid">
+            <option value="">全部</option>
+            <option value="yes" {% if filters.customer_wholesale_paid == 'yes' %}selected{% endif %}>是</option>
+            <option value="no" {% if filters.customer_wholesale_paid == 'no' %}selected{% endif %}>否</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">每頁</label>
+          <select class="form-select" name="per_page">
+            {% for size in page_size_options %}
+              <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button class="btn btn-dark flex-fill" type="submit">查詢</button>
+          <a class="btn btn-outline-secondary flex-fill" href="{{ url_for('system.index', active_tab='customers') }}">重設</a>
+        </div>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr><th>客戶編號</th><th>客戶姓名</th><th>電話</th><th>LINE</th><th>客戶分類</th><th>已繳批發金</th><th>地址</th><th>備註</th><th class="text-end">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for customer in customers.items %}
+          <tr>
+            <td>{{ customer.customer_code or "-" }}</td>
+            <td class="fw-semibold">{{ customer.name }}</td>
+            <td>{{ customer.phone or "-" }}</td>
+            <td>{{ customer.line or "-" }}</td>
+            <td>{{ customer.category.name if customer.category else "未分類" }}</td>
+            <td>{{ "已繳" if customer.wholesale_paid else "未繳" }}</td>
+            <td class="text-truncate" style="max-width: 220px;">{{ customer.address or "-" }}</td>
+            <td class="text-truncate" style="max-width: 220px;">{{ customer.note or "-" }}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCustomer{{ customer.id }}">編輯</button>
+              <form class="d-inline" method="post" action="{{ url_for('system.delete_customer', customer_id=customer.id) }}" onsubmit="return confirm('確定要刪除此客戶？')">
+                <button class="btn btn-sm btn-outline-danger" type="submit">刪除</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-secondary py-5">尚無客戶資料</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <div class="text-secondary small">共 {{ customers.total }} 筆，第 {{ customers.page }} / {{ customers.pages or 1 }} 頁</div>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not customers.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='customers', per_page=per_page, customer_page=customers.prev_num, customer_code=filters.customer_code, customer_name=filters.customer_name, customer_category_id=filters.customer_category_id, customer_wholesale_paid=filters.customer_wholesale_paid) }}">上一頁</a>
+        </li>
+        <li class="page-item {% if not customers.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='customers', per_page=per_page, customer_page=customers.next_num, customer_code=filters.customer_code, customer_name=filters.customer_name, customer_category_id=filters.customer_category_id, customer_wholesale_paid=filters.customer_wholesale_paid) }}">下一頁</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="tab-pane fade {% if active_tab == 'employees' %}show active{% endif %}" id="employees">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0">員工管理</h2>
+      <button class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#createEmployeeModal">新增員工</button>
+    </div>
+    <form method="get" action="{{ url_for('system.index') }}" class="border rounded p-3 mb-3">
+      <input type="hidden" name="active_tab" value="employees">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">員工姓名</label>
+          <input class="form-control" name="employee_name" value="{{ filters.employee_name }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">角色</label>
+          <select class="form-select" name="employee_role_id">
+            <option value="">全部</option>
+            {% for role in active_roles %}
+              <option value="{{ role.id }}" {% if filters.employee_role_id == role.id|string %}selected{% endif %}>{{ role.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">狀態</label>
+          <select class="form-select" name="employee_status">
+            <option value="">全部</option>
+            <option value="active" {% if filters.employee_status == 'active' %}selected{% endif %}>啟用</option>
+            <option value="inactive" {% if filters.employee_status == 'inactive' %}selected{% endif %}>停用</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">每頁</label>
+          <select class="form-select" name="per_page">
+            {% for size in page_size_options %}
+              <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button class="btn btn-dark flex-fill" type="submit">查詢</button>
+          <a class="btn btn-outline-secondary flex-fill" href="{{ url_for('system.index', active_tab='employees') }}">重設</a>
+        </div>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr><th>員工姓名</th><th>登入帳號</th><th>角色</th><th>電話</th><th>狀態</th><th>到職日期</th><th>離職日期</th><th>備註</th><th class="text-end">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for employee in employees.items %}
+          <tr>
+            <td class="fw-semibold">{{ employee.name }}</td>
+            <td>{{ employee.login_username or "-" }}</td>
+            <td>{{ employee.role_master.name if employee.role_master else employee.role or "-" }}</td>
+            <td>{{ employee.phone or "-" }}</td>
+            <td>{{ status_badge(employee.is_active) }}</td>
+            <td>{{ employee.hire_date.strftime("%Y-%m-%d") if employee.hire_date else "-" }}</td>
+            <td>{{ employee.resign_date.strftime("%Y-%m-%d") if employee.resign_date else "-" }}</td>
+            <td class="text-truncate" style="max-width: 220px;">{{ employee.note or "-" }}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editEmployee{{ employee.id }}">編輯</button>
+              <form class="d-inline" method="post" action="{{ url_for('system.delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('確定要停用此員工？')">
+                <button class="btn btn-sm btn-outline-secondary" type="submit">停用</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-secondary py-5">尚無員工資料</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <div class="text-secondary small">共 {{ employees.total }} 筆，第 {{ employees.page }} / {{ employees.pages or 1 }} 頁</div>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not employees.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='employees', per_page=per_page, employee_page=employees.prev_num, employee_name=filters.employee_name, employee_role_id=filters.employee_role_id, employee_status=filters.employee_status) }}">上一頁</a>
+        </li>
+        <li class="page-item {% if not employees.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='employees', per_page=per_page, employee_page=employees.next_num, employee_name=filters.employee_name, employee_role_id=filters.employee_role_id, employee_status=filters.employee_status) }}">下一頁</a>
+        </li>
+      </ul>
+    </div>
+    <div class="border-top mt-4 pt-4">
+      <h3 class="h6">員工功能預留</h3>
+      <div class="row g-3">
+        {% for feature, title in [("accounts", "帳號管理"), ("permissions", "權限管理"), ("applications", "員工申請審核"), ("attendance", "出勤打卡"), ("leave", "請假管理"), ("schedule", "排班排休")] %}
+        <div class="col-md-4 col-xl-2">
+          <a class="d-block border rounded p-3 h-100 text-decoration-none text-body" href="{{ url_for('system.employee_reserved', feature=feature) }}">
+            <div class="fw-semibold">{{ title }}</div>
+            <div class="text-secondary small mt-1">已預留資料結構</div>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-pane fade {% if active_tab == 'suppliers' %}show active{% endif %}" id="suppliers">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0">廠商管理</h2>
+      <button class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#createSupplierModal">新增廠商</button>
+    </div>
+    <form method="get" action="{{ url_for('system.index') }}" class="border rounded p-3 mb-3">
+      <input type="hidden" name="active_tab" value="suppliers">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">廠商名稱</label>
+          <input class="form-control" name="supplier_name" value="{{ filters.supplier_name }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">聯絡人</label>
+          <input class="form-control" name="supplier_contact_person" value="{{ filters.supplier_contact_person }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">電話</label>
+          <input class="form-control" name="supplier_phone" value="{{ filters.supplier_phone }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">每頁</label>
+          <select class="form-select" name="per_page">
+            {% for size in page_size_options %}
+              <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button class="btn btn-dark flex-fill" type="submit">查詢</button>
+          <a class="btn btn-outline-secondary flex-fill" href="{{ url_for('system.index', active_tab='suppliers') }}">重設</a>
+        </div>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr><th>廠商名稱</th><th>聯絡人</th><th>電話</th><th>LINE</th><th>地址</th><th>備註</th><th class="text-end">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for supplier in suppliers.items %}
+          <tr>
+            <td class="fw-semibold">{{ supplier.name }}</td>
+            <td>{{ supplier.contact_person or "-" }}</td>
+            <td>{{ supplier.phone or "-" }}</td>
+            <td>{{ supplier.line or "-" }}</td>
+            <td class="text-truncate" style="max-width: 220px;">{{ supplier.address or "-" }}</td>
+            <td class="text-truncate" style="max-width: 220px;">{{ supplier.note or "-" }}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editSupplier{{ supplier.id }}">編輯</button>
+              <form class="d-inline" method="post" action="{{ url_for('system.delete_supplier', supplier_id=supplier.id) }}" onsubmit="return confirm('確定要刪除此廠商？')">
+                <button class="btn btn-sm btn-outline-danger" type="submit">刪除</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-secondary py-5">尚無廠商資料</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <div class="text-secondary small">共 {{ suppliers.total }} 筆，第 {{ suppliers.page }} / {{ suppliers.pages or 1 }} 頁</div>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not suppliers.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='suppliers', per_page=per_page, supplier_page=suppliers.prev_num, supplier_name=filters.supplier_name, supplier_contact_person=filters.supplier_contact_person, supplier_phone=filters.supplier_phone) }}">上一頁</a>
+        </li>
+        <li class="page-item {% if not suppliers.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('system.index', active_tab='suppliers', per_page=per_page, supplier_page=suppliers.next_num, supplier_name=filters.supplier_name, supplier_contact_person=filters.supplier_contact_person, supplier_phone=filters.supplier_phone) }}">下一頁</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="tab-pane fade {% if active_tab == 'basic' %}show active{% endif %}" id="basic">
+    <div class="row g-4">
+      <div class="col-lg-4">
+        <h3 class="h6">客戶分類</h3>
+        <form method="post" action="{{ url_for('system.create_customer_category') }}" class="input-group mb-3">
+          <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" placeholder="新增客戶分類" required>
+          <button class="btn btn-dark" type="submit">新增</button>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th>名稱</th><th>狀態</th><th class="text-end">操作</th></tr></thead>
+            <tbody>
+              {% for item in categories %}
+              <tr>
+                <td>
+                  <form id="categoryForm{{ item.id }}" method="post" action="{{ url_for('system.update_customer_category', category_id=item.id) }}" class="d-flex gap-2">
+                    <input class="form-control form-control-sm {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ item.name }}" required>
+                    <select class="form-select form-select-sm w-auto" name="is_active">
+                      <option value="1" {% if item.is_active %}selected{% endif %}>啟用</option>
+                      <option value="0" {% if not item.is_active %}selected{% endif %}>停用</option>
+                    </select>
+                  </form>
+                </td>
+                <td>{{ status_badge(item.is_active) }}</td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary" form="categoryForm{{ item.id }}" type="submit">儲存</button>
+                  {% if item.is_active %}
+                  <form class="d-inline" method="post" action="{{ url_for('system.deactivate_customer_category', category_id=item.id) }}">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">停用</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-secondary py-3">尚無資料</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <h3 class="h6">員工角色</h3>
+        <form method="post" action="{{ url_for('system.create_employee_role') }}" class="input-group mb-3">
+          <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" placeholder="新增員工角色" required>
+          <button class="btn btn-dark" type="submit">新增</button>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th>名稱</th><th>狀態</th><th class="text-end">操作</th></tr></thead>
+            <tbody>
+              {% for item in roles %}
+              <tr>
+                <td>
+                  <form id="roleForm{{ item.id }}" method="post" action="{{ url_for('system.update_employee_role', role_id=item.id) }}" class="d-flex gap-2">
+                    <input class="form-control form-control-sm {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ item.name }}" required>
+                    <select class="form-select form-select-sm w-auto" name="is_active">
+                      <option value="1" {% if item.is_active %}selected{% endif %}>啟用</option>
+                      <option value="0" {% if not item.is_active %}selected{% endif %}>停用</option>
+                    </select>
+                  </form>
+                </td>
+                <td>{{ status_badge(item.is_active) }}</td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary" form="roleForm{{ item.id }}" type="submit">儲存</button>
+                  {% if item.is_active %}
+                  <form class="d-inline" method="post" action="{{ url_for('system.deactivate_employee_role', role_id=item.id) }}">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">停用</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-secondary py-3">尚無資料</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <h3 class="h6">訂單客源</h3>
+        <form method="post" action="{{ url_for('system.create_order_source') }}" class="input-group mb-3">
+          <input class="form-control {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" placeholder="新增訂單客源" required>
+          <button class="btn btn-dark" type="submit">新增</button>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th>名稱</th><th>狀態</th><th class="text-end">操作</th></tr></thead>
+            <tbody>
+              {% for item in order_sources %}
+              <tr>
+                <td>
+                  <form id="sourceForm{{ item.id }}" method="post" action="{{ url_for('system.update_order_source', source_id=item.id) }}" class="d-flex gap-2">
+                    <input class="form-control form-control-sm {% if system_field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ item.name }}" required>
+                    <select class="form-select form-select-sm w-auto" name="is_active">
+                      <option value="1" {% if item.is_active %}selected{% endif %}>啟用</option>
+                      <option value="0" {% if not item.is_active %}selected{% endif %}>停用</option>
+                    </select>
+                  </form>
+                </td>
+                <td>{{ status_badge(item.is_active) }}</td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary" form="sourceForm{{ item.id }}" type="submit">儲存</button>
+                  {% if item.is_active %}
+                  <form class="d-inline" method="post" action="{{ url_for('system.deactivate_order_source', source_id=item.id) }}">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">停用</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-secondary py-3">尚無資料</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="tab-pane fade {% if active_tab == 'ai' %}show active{% endif %}" id="ai">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="h5 mb-1">AI設定</h2>
+        <div class="text-secondary small">Google AI Studio API Key 設定，儲存後立即生效，不需要重啟 Flask。</div>
+      </div>
+      <span class="badge text-bg-{{ 'success' if ai_settings.connection_status == '連線成功' else 'danger' if ai_settings.connection_status == '連線失敗' else 'secondary' }}">{{ ai_settings.connection_status }}</span>
+    </div>
+    <form method="post" action="{{ url_for('system.save_ai_settings') }}" class="border rounded p-3 mb-3">
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <label class="form-label">Google AI API Key</label>
+          <div class="input-group">
+            <input class="form-control" id="geminiApiKeyInput" type="password" name="gemini_api_key" value="{{ ai_settings.api_key if is_admin else '' }}" placeholder="{{ ai_masked_key or '尚未設定' }}" {% if not is_admin %}readonly{% endif %}>
+            <button class="btn btn-outline-secondary" type="button" id="toggleGeminiKey">顯示</button>
+          </div>
+          <div class="form-text">目前來源：{{ '資料庫設定' if ai_settings.api_key_source == 'database' else 'config.py' }}</div>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label">目前模型</label>
+          <input class="form-control" value="{{ ai_model }}" readonly>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label">最後測試時間</label>
+          <input class="form-control" value="{{ ai_settings.last_tested_at or '-' }}" readonly>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label">連線狀態</label>
+          <input class="form-control" value="{{ ai_settings.connection_status or '-' }}" readonly>
+        </div>
+        <div class="col-lg-4 d-flex align-items-end gap-2">
+          <button class="btn btn-dark" type="submit" {% if not is_admin %}disabled{% endif %}>儲存</button>
+          <button class="btn btn-outline-primary" type="submit" formaction="{{ url_for('system.test_ai_settings') }}" {% if not is_admin %}disabled{% endif %}>測試連線</button>
+        </div>
+        <div class="col-12">
+          <label class="form-label">完整錯誤訊息</label>
+          <textarea class="form-control" rows="6" readonly>{{ ai_settings.last_error or '' }}</textarea>
+        </div>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div class="modal fade" id="createCustomerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">新增客戶</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ customer_form(url_for('system.create_customer')) }}</div>
+  </div></div>
+</div>
+<div class="modal fade" id="createEmployeeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">新增員工</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ employee_form(url_for('system.create_employee')) }}</div>
+  </div></div>
+</div>
+<div class="modal fade" id="createSupplierModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">新增廠商</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ supplier_form(url_for('system.create_supplier')) }}</div>
+  </div></div>
+</div>
+
+{% for customer in customers.items %}
+<div class="modal fade" id="editCustomer{{ customer.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">編輯客戶</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ customer_form(url_for('system.update_customer', customer_id=customer.id), customer) }}</div>
+  </div></div>
+</div>
+{% endfor %}
+
+{% for employee in employees.items %}
+<div class="modal fade" id="editEmployee{{ employee.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">編輯員工</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ employee_form(url_for('system.update_employee', employee_id=employee.id), employee) }}</div>
+  </div></div>
+</div>
+{% endfor %}
+
+{% for supplier in suppliers.items %}
+<div class="modal fade" id="editSupplier{{ supplier.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">編輯廠商</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">{{ supplier_form(url_for('system.update_supplier', supplier_id=supplier.id), supplier) }}</div>
+  </div></div>
+</div>
+{% endfor %}
+{% if open_modal %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const modal = document.getElementById("{{ open_modal }}");
+  if (modal && window.bootstrap) {
+    window.bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
+});
+</script>
+{% endif %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("geminiApiKeyInput");
+  const button = document.getElementById("toggleGeminiKey");
+  if (!input || !button) return;
+  button.addEventListener("click", () => {
+    const hidden = input.type === "password";
+    input.type = hidden ? "text" : "password";
+    button.textContent = hidden ? "隱藏" : "顯示";
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">儀表板</h1>
+    <div class="text-secondary">商品、庫存與訂單概況</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('products.create') }}">+新增商品</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">商品數</div>
+      <div class="metric-number">{{ product_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">規格數</div>
+      <div class="metric-number">{{ variant_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">低庫存規格</div>
+      <div class="metric-number">{{ low_stock_count }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">今日完成訂單數</div>
+      <div class="metric-number">{{ today_completed_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">本月完成訂單數</div>
+      <div class="metric-number">{{ month_completed_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="text-secondary">完成訂單總金額</div>
+      <div class="metric-number">${{ "%.0f"|format(completed_total_amount or 0) }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

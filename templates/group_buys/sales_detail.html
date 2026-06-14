@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">商品銷售明細</h1>
+    <div class="text-secondary">{{ product.sku }} {{ product.name }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.sales') }}">返回商品銷售查詢</a>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>團購編號</th>
+        <th>團購名稱</th>
+        <th>客戶名稱</th>
+        <th>批客編號</th>
+        <th>商品名稱</th>
+        <th>顏色</th>
+        <th>尺寸</th>
+        <th class="text-end">數量</th>
+        <th class="text-end">單價</th>
+        <th class="text-end">小計</th>
+        <th>狀態</th>
+        <th>建立時間</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.group_buy.group_buy_no if item.group_buy else "-" }}</td>
+        <td>{{ item.group_buy.name if item.group_buy else "-" }}</td>
+        <td>{{ item.group_buy_order.customer_name or (item.group_buy_order.customer.name if item.group_buy_order.customer else "-") }}</td>
+        <td>{{ item.group_buy_order.customer_code or (item.group_buy_order.customer.customer_code if item.group_buy_order.customer else "-") }}</td>
+        <td>{{ item.product_name or product.name }}</td>
+        <td>{{ item.color_name or (item.product_variant.color.name if item.product_variant and item.product_variant.color else "-") }}</td>
+        <td>{{ item.size_name or (item.product_variant.size.name if item.product_variant and item.product_variant.size else "-") }}</td>
+        <td class="text-end">{{ item.quantity }}</td>
+        <td class="text-end">${{ "%.0f"|format(item.unit_price or 0) }}</td>
+        <td class="text-end">${{ "%.0f"|format(item.subtotal or 0) }}</td>
+        <td><span class="badge text-bg-info">{{ item.group_buy_order.order_status }}</span></td>
+        <td>{{ item.group_buy_order.created_at.strftime("%Y-%m-%d %H:%M") if item.group_buy_order.created_at else "-" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="text-center text-secondary py-5">尚無此商品團購銷售紀錄。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "group_buys/_pagination.html" %}
+{% endblock %}

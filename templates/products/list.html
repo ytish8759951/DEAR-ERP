@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% macro copy_block(title, text) %}
+<section class="copy-section">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">{{ title }}</h6>
+    <button class="btn btn-sm btn-outline-dark copy-btn" type="button" data-copy="{{ text|trim|e }}">複製</button>
+  </div>
+  <pre>{{ text|trim if text else "尚無內容" }}</pre>
+</section>
+{% endmacro %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">商品列表</h1>
+    <div class="text-secondary">管理商品資料、圖片與規格庫存。</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('products.create') }}">+新增商品</a>
+</div>
+
+<section class="search-panel mb-4">
+  <form method="get" action="{{ url_for('products.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">商品編號</label>
+        <input class="form-control" name="sku" value="{{ filters.sku }}" placeholder="輸入商品編號">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">商品名稱</label>
+        <input class="form-control" name="name" value="{{ filters.name }}" placeholder="輸入商品名稱關鍵字">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">廠商</label>
+        <input class="form-control" name="supplier" value="{{ filters.supplier }}" placeholder="輸入廠商關鍵字">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">放置位置</label>
+        <select class="form-select" name="location_id">
+          <option value="">全部位置</option>
+          {% for location in locations %}
+            <option value="{{ location.id }}" {% if filters.location_id == location.id|string %}selected{% endif %}>{{ location.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁筆數</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+            <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('products.index') }}">清除</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive product-table-wrap">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>商品編號</th>
+        <th>圖片</th>
+        <th>商品名稱</th>
+        <th>售價</th>
+        <th>成本</th>
+        <th>庫存</th>
+        <th>供貨模式</th>
+        <th>放置位置</th>
+        <th>廠商</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td class="fw-semibold">{{ product.sku }}</td>
+        <td>
+          {% if product.image_path %}
+            <img
+              class="product-thumb product-preview-trigger"
+              src="{{ url_for('static', filename=product.image_path) }}"
+              data-preview-src="{{ url_for('static', filename=product.image_path) }}"
+              alt="{{ product.name }}"
+            >
+          {% else %}
+            <div class="product-thumb placeholder-thumb">無圖</div>
+          {% endif %}
+        </td>
+        <td>{{ product.name }}</td>
+        <td>${{ "%.0f"|format(product.price) }}</td>
+        <td>${{ "%.0f"|format(product.cost) }}</td>
+        <td class="stock-cell">{{ product.stock_display }}</td>
+        <td>
+          {% if product.supply_mode == "出清商品" %}
+            {% if product.variants and (product.variants|sum(attribute='stock')) <= 0 %}
+            <span class="badge text-bg-danger">已售完</span>
+            {% else %}
+            <span class="badge text-bg-warning">出清商品</span>
+            {% endif %}
+          {% else %}
+          <span class="badge text-bg-secondary">一般商品</span>
+          {% endif %}
+        </td>
+        <td>{{ product.location.name if product.location else "-" }}</td>
+        <td>{{ product.supplier.name if product.supplier else "-" }}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#productModal{{ product.id }}">查看</button>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('products.edit', product_id=product.id) }}">編輯</a>
+          {% if product.supply_mode == "出清商品" %}
+          <form class="d-inline" method="post" action="{{ url_for('products.update_supply_mode', product_id=product.id) }}">
+            <input type="hidden" name="supply_mode" value="一般商品">
+            <button class="btn btn-sm btn-outline-success" type="submit">恢復一般</button>
+          </form>
+          {% else %}
+          <form class="d-inline" method="post" action="{{ url_for('products.update_supply_mode', product_id=product.id) }}">
+            <input type="hidden" name="supply_mode" value="出清商品">
+            <button class="btn btn-sm btn-outline-warning" type="submit">轉出清</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="10" class="text-center text-secondary py-5">查無符合條件的商品</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">
+    共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁
+  </div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('products.index', page=pagination.prev_num, per_page=pagination.per_page, sku=filters.sku, name=filters.name, supplier=filters.supplier, location_id=filters.location_id) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('products.index', page=pagination.next_num, per_page=pagination.per_page, sku=filters.sku, name=filters.name, supplier=filters.supplier, location_id=filters.location_id) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+<div class="product-hover-preview" id="productHoverPreview" aria-hidden="true">
+  <img src="" alt="">
+</div>
+
+{% for product in products %}
+<div class="modal fade" id="productModal{{ product.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title">{{ product.name }}</h5>
+          <div class="text-secondary small">{{ product.sku }}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {{ copy_block("尺寸表", product.size_chart) }}
+        {{ copy_block("AI商品文案", product.ai_description) }}
+        {{ copy_block("LINE團購文", product.line_group_text) }}
+        {{ copy_block("直播話術", product.live_script) }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

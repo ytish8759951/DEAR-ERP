@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mx-auto bg-white border rounded p-5 text-center" style="max-width: 640px;">
+  <h1 class="h4">{% if test_order_mode %}測試團購單已送出{% else %}團購訂單已送出{% endif %}</h1>
+  <p class="text-secondary mb-4">訂單編號：{{ order_no }}</p>
+  {% if test_order_mode %}
+  <a class="btn btn-dark me-2" href="{{ url_for('group_buys.orders') }}">查看後台團購訂單</a>
+  {% endif %}
+  <a class="btn btn-dark" href="{{ url_for('public_groupbuy.entry', public_code=public_code) }}">返回團購頁</a>
+</div>
+{% endblock %}

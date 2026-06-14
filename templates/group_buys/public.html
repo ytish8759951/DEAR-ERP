@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% macro product_thumb(product) -%}
+  {% if product.image_path %}
+  <img class="order-product-thumb product-preview-trigger" src="{{ url_for('static', filename=product.image_path) }}" data-preview-src="{{ url_for('static', filename=product.image_path) }}" alt="{{ product.name }}">
+  {% else %}
+  <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="mx-auto public-group-buy-page" style="max-width: 1120px;">
+  <div class="mb-4">
+    <h1 class="h3 mb-1">{{ group_buy.name }}</h1>
+    <div class="text-secondary">{{ group_buy.description or "LINE團購商品下單" }}</div>
+  </div>
+
+  <div class="text-secondary small mb-3">截止時間：{{ group_buy.end_date.strftime("%Y-%m-%d") if group_buy.end_date else "-" }}</div>
+  {% if preview_mode %}
+  <div class="alert alert-info">公開頁預覽模式：可查看客戶畫面，不會建立正式團購訂單。</div>
+  {% endif %}
+  {% if test_order_mode %}
+  <div class="alert alert-warning">測試下單模式：會使用系統測試批客建立測試團購單。</div>
+  {% endif %}
+
+  {% if not customer and not preview_mode %}
+  <section class="bg-white border rounded p-4">
+    <h2 class="h5 mb-3">批客驗證</h2>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input type="hidden" name="action" value="verify">
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">批客編號</label><input class="form-control" name="customer_code" required></div>
+        <div class="col-md-6"><label class="form-label">手機號碼</label><input class="form-control" name="phone" required></div>
+      </div>
+      <div class="d-flex justify-content-end mt-3"><button class="btn btn-dark" type="submit">驗證</button></div>
+    </form>
+  </section>
+  {% else %}
+  <section class="bg-white border rounded p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div><strong>{{ customer.name if customer else "預覽管理員" }}</strong>，已通過批客驗證。</div>
+      <span class="badge text-bg-success">{{ customer.customer_code if customer else "PREVIEW" }}</span>
+    </div>
+  </section>
+  <form method="post" action="{{ url_for('public_groupbuy.submit_order', public_code=group_buy.public_code or group_buy.group_buy_no, preview=1 if preview_mode else None, test_order=1 if test_order_mode else None) }}">
+    {% if preview_mode %}<input type="hidden" name="preview_mode" value="1">{% endif %}
+    {% if test_order_mode %}<input type="hidden" name="test_order_mode" value="1">{% endif %}
+    <section class="bg-white border rounded p-3 mb-4">
+      <div class="mb-3"><label class="form-label">LINE名稱</label><input class="form-control" name="line_name"></div>
+
+      <div class="public-group-buy-products">
+        {% for product_group in group_buy.items|selectattr("is_active")|sort(attribute="product.sku")|groupby("product_id") %}
+        {% set first = product_group.list[0] %}
+        <div class="public-gb-product-card border rounded p-3 mb-3" data-product-id="{{ first.product_id }}">
+          <div class="d-flex flex-column flex-md-row gap-3">
+            <div>{{ product_thumb(first.product) }}</div>
+            <div class="flex-grow-1">
+              <div class="d-flex flex-wrap justify-content-between gap-3">
+                <div>
+                  <div class="fw-semibold">{{ first.product.name }}</div>
+                  <div class="text-secondary small">團購價：${{ "%.0f"|format(first.group_price or 0) }}</div>
+                  <div class="text-secondary small">供貨模式：{{ first.supply_mode }}</div>
+                </div>
+                <div class="text-md-end">
+                  <div class="small text-secondary">本商品件數</div>
+                  <div class="fw-semibold public-gb-product-count">0</div>
+                </div>
+                <div class="text-md-end">
+                  <div class="small text-secondary">本商品小計</div>
+                  <div class="fw-semibold public-gb-product-subtotal">$0</div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                {% for color_group in product_group.list|sort(attribute="product_variant.size.name")|groupby("product_variant.color.name") %}
+                <div class="border-top pt-2 mt-2">
+                  <div class="fw-semibold mb-2">{{ color_group.grouper or "-" }}</div>
+                  <div class="row g-2">
+                    {% for item in color_group.list|sort(attribute="product_variant.size.name") %}
+                    {% set sold_out = item.supply_mode == "出清商品" and item.product_variant.stock <= 0 %}
+                    {% if not sold_out %}
+                    <div class="col-6 col-md-4 col-lg-3">
+                      <div class="border rounded p-2 h-100">
+                        <div class="d-flex justify-content-between gap-2 align-items-center">
+                          <span class="fw-semibold">{{ item.product_variant.size.name if item.product_variant.size else "-" }}</span>
+                          <span class="text-secondary small">庫存 {{ item.product_variant.stock or 0 }}</span>
+                        </div>
+                        <input
+                          class="form-control form-control-sm text-end mt-2 public-gb-quantity"
+                          type="number"
+                          min="0"
+                          {% if item.supply_mode == "出清商品" %}max="{{ item.product_variant.stock }}"{% endif %}
+                          name="quantity_{{ item.id }}"
+                          value="0"
+                          data-product-id="{{ item.product_id }}"
+                          data-price="{{ item.group_price or 0 }}"
+                        >
+                      </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="text-center text-secondary border rounded py-4">目前沒有可下單商品。</div>
+        {% endfor %}
+      </div>
+
+      <div class="public-gb-sticky-total border rounded bg-white p-3 mt-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+          <div class="d-flex gap-4">
+            <div>
+              <div class="small text-secondary">總件數</div>
+              <div class="h5 mb-0" id="publicGbTotalQuantity">0</div>
+            </div>
+            <div>
+              <div class="small text-secondary">訂單總金額</div>
+              <div class="h5 mb-0" id="publicGbTotalAmount">$0</div>
+            </div>
+          </div>
+          <button class="btn btn-dark" type="submit">送出訂單</button>
+        </div>
+      </div>
+    </section>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">客戶管理</h1>
+    <div class="text-secondary">管理客戶資料、批發金狀態與停用狀態。</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('customers.create') }}">+新增客戶</a>
+</div>
+
+<section class="search-panel mb-4">
+  <form method="get" action="{{ url_for('customers.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3"><label class="form-label">客戶編號</label><input class="form-control" name="customer_code" value="{{ filters.customer_code }}"></div>
+      <div class="col-md-3"><label class="form-label">客戶名稱</label><input class="form-control" name="name" value="{{ filters.name }}"></div>
+      <div class="col-md-3"><label class="form-label">電話</label><input class="form-control" name="phone" value="{{ filters.phone }}"></div>
+      <div class="col-md-3"><label class="form-label">LINE</label><input class="form-control" name="line" value="{{ filters.line }}"></div>
+      <div class="col-md-3">
+        <label class="form-label">客戶分類</label>
+        <select class="form-select" name="category_id">
+          <option value="">全部</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if filters.category_id == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">已繳批發金</label>
+        <select class="form-select" name="wholesale_paid">
+          <option value="">全部</option>
+          <option value="1" {% if filters.wholesale_paid == "1" %}selected{% endif %}>已繳</option>
+          <option value="0" {% if filters.wholesale_paid == "0" %}selected{% endif %}>未繳</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">狀態</label>
+        <select class="form-select" name="status">
+          <option value="">全部</option>
+          <option value="active" {% if filters.status == "active" %}selected{% endif %}>啟用</option>
+          <option value="inactive" {% if filters.status == "inactive" %}selected{% endif %}>停用</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+            <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('customers.index') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>客戶編號</th><th>客戶名稱</th><th>電話</th><th>LINE</th><th>客戶分類</th><th>已繳批發金</th><th>批發金繳費日期</th><th>狀態</th><th>建立時間</th><th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer in customers %}
+      <tr class="{% if not customer.is_active %}table-secondary{% endif %}">
+        <td class="fw-semibold">{{ customer.customer_code }}</td>
+        <td>{{ customer.name }}</td>
+        <td>{{ customer.phone or "-" }}</td>
+        <td>{{ customer.line or "-" }}</td>
+        <td>{{ customer.category.name if customer.category else "-" }}</td>
+        <td>{{ "已繳" if customer.wholesale_paid else "未繳" }}</td>
+        <td>{{ customer.wholesale_paid_date.strftime("%Y-%m-%d") if customer.wholesale_paid_date else "-" }}</td>
+        <td><span class="badge text-bg-{{ 'success' if customer.is_active else 'danger' }}">{{ "啟用" if customer.is_active else "停用" }}</span></td>
+        <td>{{ customer.created_at.strftime("%Y-%m-%d %H:%M") if customer.created_at else "-" }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers.detail', customer_id=customer.id) }}">查看</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('customers.edit', customer_id=customer.id) }}">編輯</a>
+          {% if customer.is_active %}
+          <form class="d-inline" method="post" action="{{ url_for('customers.deactivate', customer_id=customer.id) }}" onsubmit="return confirm('{{ '此客戶仍有未完成訂單，確定停用？' if unfinished_order_map[customer.id] else '確定停用此客戶？' }}')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">停用</button>
+          </form>
+          {% else %}
+          <form class="d-inline" method="post" action="{{ url_for('customers.activate', customer_id=customer.id) }}">
+            <button class="btn btn-sm btn-outline-success" type="submit">啟用</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-center text-secondary py-5">查無客戶資料</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁</div>
+  <nav><ul class="pagination pagination-sm mb-0">
+    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('customers.index', page=pagination.prev_num, per_page=pagination.per_page, customer_code=filters.customer_code, name=filters.name, phone=filters.phone, line=filters.line, category_id=filters.category_id, wholesale_paid=filters.wholesale_paid, status=filters.status) }}">上一頁</a></li>
+    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('customers.index', page=pagination.next_num, per_page=pagination.per_page, customer_code=filters.customer_code, name=filters.name, phone=filters.phone, line=filters.line, category_id=filters.category_id, wholesale_paid=filters.wholesale_paid, status=filters.status) }}">下一頁</a></li>
+  </ul></nav>
+</div>
+{% endblock %}

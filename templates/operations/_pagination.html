@@ -1,0 +1,15 @@
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">
+    共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁
+  </div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for(request.endpoint, page=pagination.prev_num, per_page=pagination.per_page) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for(request.endpoint, page=pagination.next_num, per_page=pagination.per_page) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>

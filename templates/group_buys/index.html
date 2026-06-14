@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">團購列表</h1>
+    <div class="text-secondary">LINE團購活動管理</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('group_buys.create') }}">+新增團購</a>
+</div>
+
+<section class="border rounded bg-white p-3 mb-4">
+  <form method="get" action="{{ url_for('group_buys.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3"><label class="form-label">團購編號</label><input class="form-control" name="group_buy_no" value="{{ filters.group_buy_no }}"></div>
+      <div class="col-md-3"><label class="form-label">團購名稱</label><input class="form-control" name="name" value="{{ filters.name }}"></div>
+      <div class="col-md-3">
+        <label class="form-label">狀態</label>
+        <select class="form-select" name="status">
+          <option value="">全部</option>
+          {% for status in statuses %}<option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3"><label class="form-label">開始日期</label><input class="form-control" type="date" name="date_start" value="{{ filters.date_start }}"></div>
+      <div class="col-md-3"><label class="form-label">結束日期</label><input class="form-control" type="date" name="date_end" value="{{ filters.date_end }}"></div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.index') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>團購編號</th><th>團購名稱</th><th>開始時間</th><th>結束時間</th>
+        <th class="text-end">商品數</th><th class="text-end">訂單數</th><th>狀態</th><th>公開網址</th><th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for group_buy in group_buys %}
+      <tr>
+        <td class="fw-semibold">{{ group_buy.group_buy_no }}</td>
+        <td>{{ group_buy.name }}</td>
+        <td>{{ group_buy.start_date.strftime("%Y-%m-%d") if group_buy.start_date else "-" }}</td>
+        <td>{{ group_buy.end_date.strftime("%Y-%m-%d") if group_buy.end_date else "-" }}</td>
+        <td class="text-end">{{ group_buy.items|length }}</td>
+        <td class="text-end">{{ group_buy.orders|length }}</td>
+        <td><span class="badge text-bg-info">{{ group_buy.status }}</span></td>
+        <td><input class="form-control form-control-sm" value="{{ request.host_url.rstrip('/') }}{{ public_group_buy_url(group_buy) }}" readonly></td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('group_buys.detail', group_buy_id=group_buy.id) }}">查看</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('group_buys.edit', group_buy_id=group_buy.id) }}">編輯</a>
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('group_buys.orders', group_buy_no=group_buy.group_buy_no) }}">查看訂單</a>
+          <a class="btn btn-sm btn-outline-success" href="{{ public_group_buy_preview_url(group_buy) }}" target="_blank">查看公開頁</a>
+          <a class="btn btn-sm btn-outline-warning" href="{{ public_group_buy_test_order_url(group_buy) }}" target="_blank">測試下單</a>
+          <button class="btn btn-sm btn-outline-secondary copy-button" type="button" data-copy="{{ request.host_url.rstrip('/') }}{{ public_group_buy_url(group_buy) }}">複製連結</button>
+          {% if group_buy.status != "已結單" %}
+          <form class="d-inline" method="post" action="{{ url_for('group_buys.close', group_buy_id=group_buy.id) }}"><button class="btn btn-sm btn-outline-warning" type="submit">結單</button></form>
+          {% endif %}
+          {% if group_buy.status != "已停用" %}
+          <form class="d-inline" method="post" action="{{ url_for('group_buys.deactivate', group_buy_id=group_buy.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit">停用</button></form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-secondary py-5">尚無團購資料。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "group_buys/_pagination.html" %}
+{% endblock %}

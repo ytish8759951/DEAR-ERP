@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">規格管理</h1>
+    <div class="text-secondary">新增顏色、尺寸與其他規格，供商品表單勾選使用。</div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if kind == 'colors' %}active{% endif %}" href="{{ url_for('settings.specs', kind='colors') }}">新增顏色</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if kind == 'sizes' %}active{% endif %}" href="{{ url_for('settings.specs', kind='sizes') }}">新增尺寸</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if kind == 'other_specs' %}active{% endif %}" href="{{ url_for('settings.specs', kind='other_specs') }}">新增其他規格</a>
+  </li>
+</ul>
+{% if errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  <ul class="mb-0 mt-2">
+    {% for field, message in field_errors.items() %}
+    <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" class="row g-2 mb-4">
+  <div class="col-md-6">
+    <input class="form-control {% if field_errors['name'] %}is-invalid{% endif %}" name="name" placeholder="新增{{ title }}" required>
+    {% if field_errors['name'] %}<div class="text-danger small mt-1">{{ field_errors['name'] }}</div>{% endif %}
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-dark" type="submit">新增</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>{{ title }}</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          <form id="editSpec{{ item.id }}" method="post" action="{{ url_for('settings.edit_spec', kind=kind, item_id=item.id) }}">
+            <input class="form-control {% if field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ item.name }}" required>
+          </form>
+        </td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary" type="submit" form="editSpec{{ item.id }}">編輯</button>
+          <form class="d-inline" method="post" action="{{ url_for('settings.delete_spec', kind=kind, item_id=item.id) }}" onsubmit="return confirm('確定刪除？')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">刪除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="2" class="text-center text-secondary py-5">尚未建立{{ title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

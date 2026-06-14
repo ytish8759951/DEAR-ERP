@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">員工管理</h1>
+    <div class="text-secondary">管理員工帳號、職稱、狀態與基礎權限群組。</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('employees.create') }}">+ 新增員工</a>
+</div>
+
+<section class="search-panel mb-4">
+  <form method="get" action="{{ url_for('employees.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">姓名</label>
+        <input class="form-control" name="name" value="{{ filters.name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">帳號</label>
+        <input class="form-control" name="login_username" value="{{ filters.login_username }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">職稱</label>
+        <select class="form-select" name="role_id">
+          <option value="">全部</option>
+          {% for role in roles %}
+          <option value="{{ role.id }}" {% if filters.role_id == role.id|string %}selected{% endif %}>{{ role.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">狀態</label>
+        <select class="form-select" name="status">
+          <option value="">全部</option>
+          {% for status in statuses %}
+          <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+          <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('employees.index') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>員工編號</th>
+        <th>姓名</th>
+        <th>帳號</th>
+        <th>職稱</th>
+        <th>電話</th>
+        <th>到職日</th>
+        <th>狀態</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for employee in employees %}
+      <tr class="{% if employee.status != '在職' %}table-secondary{% endif %}">
+        <td class="fw-semibold">{{ employee.employee_code }}</td>
+        <td>{{ employee.name }}</td>
+        <td>{{ employee.login_username or "-" }}</td>
+        <td>{{ employee.role_master.name if employee.role_master else employee.role or "-" }}</td>
+        <td>{{ employee.phone or "-" }}</td>
+        <td>{{ employee.hire_date.strftime("%Y-%m-%d") if employee.hire_date else "-" }}</td>
+        <td>
+          <span class="badge text-bg-{{ 'success' if employee.status == '在職' else 'danger' if employee.status == '停用' else 'secondary' }}">{{ employee.status }}</span>
+        </td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('employees.detail', employee_id=employee.id) }}">查看</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('employees.edit', employee_id=employee.id) }}">編輯</a>
+          {% if employee.status == '在職' %}
+          <form class="d-inline" method="post" action="{{ url_for('employees.deactivate', employee_id=employee.id) }}" onsubmit="return confirm('確定要停用此員工？')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">停用</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-secondary py-5">查無員工資料</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁</div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('employees.index', page=pagination.prev_num, per_page=pagination.per_page, name=filters.name, login_username=filters.login_username, role_id=filters.role_id, status=filters.status) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('employees.index', page=pagination.next_num, per_page=pagination.per_page, name=filters.name, login_username=filters.login_username, role_id=filters.role_id, status=filters.status) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endblock %}

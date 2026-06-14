@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set selected_color_ids = product.variants|default([])|map(attribute='color_id')|list %}
+{% set selected_size_ids = product.variants|default([])|map(attribute='size_id')|list %}
+{% set selected_other_spec_ids = product.other_specs|default([])|map(attribute='id')|list %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ action }}</h1>
+    <div class="text-secondary">商品編號由系統自動產生，AI商品助手已串接 Gemini。</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('products.index') }}">返回商品列表</a>
+</div>
+{% if errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  {% if field_errors %}
+  <ul class="mb-0 mt-2">
+    {% for field, message in field_errors.items() %}
+    <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="productForm">
+<section class="bg-white border rounded-2 p-4 mb-4">
+  <h2 class="h5 mb-3">商品圖片</h2>
+  <div class="row g-3 align-items-start">
+    <div class="col-md-6">
+      <label class="form-label">圖片上傳</label>
+      <input class="form-control" type="file" name="image" id="productImageInput" accept="image/png,image/jpeg,image/webp">
+      <div class="form-text">支援 jpg、jpeg、png、webp。請先上傳圖片再使用 AI辨識商品。</div>
+      <div id="productImageError" class="text-danger small mt-2"></div>
+      {% if product.image_path %}
+        <div class="small text-secondary mt-2">目前圖片：{{ product.image_path }}</div>
+      {% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">圖片預覽</label>
+      <div class="product-image-preview-box">
+        {% if product.image_path %}
+        <img id="productImagePreview" src="{{ url_for('static', filename=product.image_path) }}" alt="商品圖片預覽">
+        <div id="productImagePreviewPlaceholder" class="text-secondary d-none">尚未選擇圖片</div>
+        {% else %}
+        <img id="productImagePreview" class="d-none" src="" alt="商品圖片預覽">
+        <div id="productImagePreviewPlaceholder" class="text-secondary">尚未選擇圖片</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ai-assistant-panel mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+    <div>
+      <h2 class="h5 mb-1">AI商品助手</h2>
+      <div class="text-secondary small">請先上傳商品圖片，再使用 AI辨識商品；輸入商品名稱後可產生商品文案、LINE團購文與直播話術。</div>
+    </div>
+    <div id="aiStatus" class="small"></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="analyze">AI辨識商品</button>
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="name">重新優化商品名稱</button>
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="size_chart">AI產生尺寸表</button>
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="description">AI產生商品文案</button>
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="line">AI產生LINE團購文</button>
+    <button class="btn btn-outline-dark btn-sm ai-action" type="button" data-ai-action="live">AI產生直播話術</button>
+  </div>
+</section>
+
+<section class="bg-white border rounded-2 p-4">
+  <h2 class="h5 mb-3">商品基本資料</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">商品編號</label>
+      <input class="form-control {% if field_errors['sku'] %}is-invalid{% endif %}" name="sku" value="{{ product.sku or next_sku or '' }}" readonly>
+      {% if field_errors['sku'] %}<div class="text-danger small mt-1">{{ field_errors['sku'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">商品名稱 <span class="text-danger">*</span></label>
+      <input class="form-control {% if field_errors['name'] %}is-invalid{% endif %}" name="name" id="productNameInput" value="{{ product.name or '' }}" required>
+      {% if field_errors['name'] %}<div class="text-danger small mt-1">{{ field_errors['name'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">廠商</label>
+      <select class="form-select {% if field_errors['supplier_id'] %}is-invalid{% endif %}" name="supplier_id">
+        <option value="">請選擇</option>
+        {% for supplier in suppliers %}
+          <option value="{{ supplier.id }}" {% if product.supplier_id == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>
+        {% endfor %}
+      </select>
+      {% if field_errors['supplier_id'] %}<div class="text-danger small mt-1">{{ field_errors['supplier_id'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">放置位置</label>
+      <select class="form-select {% if field_errors['location_id'] %}is-invalid{% endif %}" name="location_id">
+        <option value="">請選擇</option>
+        {% for location in locations %}
+          <option value="{{ location.id }}" {% if product.location_id == location.id %}selected{% endif %}>{{ location.name }}</option>
+        {% endfor %}
+      </select>
+      {% if field_errors['location_id'] %}<div class="text-danger small mt-1">{{ field_errors['location_id'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">顏色</label>
+      <div class="check-grid">
+        {% for color in colors %}
+        <label class="form-check">
+          <input class="form-check-input variant-color" type="checkbox" name="color_ids" value="{{ color.id }}" data-name="{{ color.name }}" {% if color.id in selected_color_ids %}checked{% endif %}>
+          <span class="form-check-label">{{ color.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">尺寸</label>
+      <div class="check-grid">
+        {% for size in sizes %}
+        <label class="form-check">
+          <input class="form-check-input variant-size" type="checkbox" name="size_ids" value="{{ size.id }}" data-name="{{ size.name }}" {% if size.id in selected_size_ids %}checked{% endif %}>
+          <span class="form-check-label">{{ size.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-12">
+      <label class="form-label">其他規格</label>
+      <div class="check-grid">
+        {% for spec in other_specs %}
+        <label class="form-check">
+          <input class="form-check-input other-spec-option" type="checkbox" name="other_spec_ids" value="{{ spec.id }}" data-name="{{ spec.name }}" {% if spec.id in selected_other_spec_ids %}checked{% endif %}>
+          <span class="form-check-label">{{ spec.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">售價</label>
+      <input class="form-control {% if field_errors['price'] %}is-invalid{% endif %}" type="number" min="0" step="1" name="price" id="productPriceInput" value="{{ product.price or 0 }}">
+      {% if field_errors['price'] %}<div class="text-danger small mt-1">{{ field_errors['price'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">成本</label>
+      <input class="form-control {% if field_errors['cost'] %}is-invalid{% endif %}" type="number" min="0" step="1" name="cost" value="{{ product.cost or 0 }}">
+      {% if field_errors['cost'] %}<div class="text-danger small mt-1">{{ field_errors['cost'] }}</div>{% endif %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">供貨模式</label>
+      <select class="form-select" name="supply_mode">
+        <option value="一般商品" {% if (product.supply_mode or '一般商品') == '一般商品' %}selected{% endif %}>一般商品</option>
+        <option value="出清商品" {% if product.supply_mode == '出清商品' %}selected{% endif %}>出清商品</option>
+      </select>
+    </div>
+  </div>
+
+  <hr class="my-4">
+  <h2 class="h5 mb-3">規格庫存</h2>
+  {% if field_errors['variants'] %}<div class="text-danger small mb-2">{{ field_errors['variants'] }}</div>{% endif %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>規格</th>
+          <th style="width: 180px;">庫存數量</th>
+        </tr>
+      </thead>
+      <tbody id="variantRows">
+        <tr><td colspan="2" class="text-secondary">請勾選顏色與尺寸</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="my-4">
+  <h2 class="h5 mb-3">AI內容欄位</h2>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">尺寸表</label>
+      <textarea class="form-control ai-field" name="size_chart" id="sizeChartInput" rows="6">{{ product.size_chart or '' }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">AI商品文案</label>
+      <textarea class="form-control ai-field" name="ai_description" id="aiDescriptionInput" rows="6">{{ product.ai_description or '' }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">LINE團購文</label>
+      <textarea class="form-control ai-field" name="line_group_text" id="lineGroupTextInput" rows="10">{{ product.line_group_text or '' }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">直播話術</label>
+      <textarea class="form-control ai-field" name="live_script" id="liveScriptInput" rows="10">{{ product.live_script or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 justify-content-end mt-4">
+    <a class="btn btn-outline-secondary" href="{{ url_for('products.index') }}">取消</a>
+    <button class="btn btn-dark" type="submit">儲存</button>
+  </div>
+</section>
+</form>
+
+<div class="modal fade" id="aiNameSuggestionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5">商品名稱建議</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-secondary small mb-3">點選任一名稱後會覆蓋目前商品名稱。</div>
+        <div class="list-group" id="aiNameSuggestionsList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.existingVariantStocks = {
+    {% for variant in product.variants %}
+      "{{ variant.color_id }}_{{ variant.size_id }}": {{ variant.stock }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  window.aiAnalyzeUrl = "{{ url_for('products.ai_analyze') }}";
+  window.aiSizeChartUrl = "{{ url_for('ai.size_chart') }}";
+  window.aiProductDescriptionUrl = "{{ url_for('ai.product_description') }}";
+  window.aiGroupBuyUrl = "{{ url_for('ai.group_buy') }}";
+  window.aiLiveScriptUrl = "{{ url_for('ai.live_script') }}";
+  window.aiNameSuggestionsUrl = "{{ url_for('ai.product_name_suggestions') }}";
+</script>
+{% endblock %}

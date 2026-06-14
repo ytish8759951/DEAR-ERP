@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">訂單 {{ order.order_no }}</h1>
+    <div class="text-secondary">{{ order.order_date.strftime("%Y-%m-%d") if order.order_date else "-" }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('orders.index') }}">返回列表</a>
+    {% if order.status != "已取消" %}
+    <button class="btn btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#returnModal{{ order.id }}">退貨</button>
+    {% endif %}
+    {% if order.status not in ["已取消", "部分退貨", "已退貨", "已完成"] %}
+    <a class="btn btn-outline-primary" href="{{ url_for('orders.edit', order_id=order.id) }}">編輯</a>
+    {% endif %}
+    <a class="btn btn-dark" target="_blank" href="{{ url_for('orders.print_order', order_id=order.id) }}">列印明細</a>
+    {% if can_complete_order(order) %}
+    <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#completeModal{{ order.id }}">完成訂單</button>
+    {% endif %}
+    {% if order.status not in ["已取消", "已完成"] %}
+    <form method="post" action="{{ url_for('orders.cancel', order_id=order.id) }}" onsubmit="return confirm('確定要取消此訂單？')">
+      <button class="btn btn-outline-danger" type="submit">取消訂單</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if order.order_source and order.order_source.name == "批發客" and order.customer and not order.customer.wholesale_paid %}
+<div class="alert alert-warning">此客戶尚未繳交批發資格費 2000 元</div>
+{% endif %}
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">訂單資料</h2>
+  <dl class="row mb-0">
+    <dt class="col-sm-2">訂單編號</dt><dd class="col-sm-4">{{ order.order_no }}</dd>
+    <dt class="col-sm-2">狀態</dt>
+    <dd class="col-sm-4">
+      {% set status_class = "secondary" %}
+      {% if order.status == "已付款" %}
+        {% set status_class = "success" %}
+      {% elif order.status == "預購中" %}
+        {% set status_class = "info" %}
+      {% elif order.status == "待出貨" %}
+        {% set status_class = "primary" %}
+      {% elif order.status == "已完成" %}
+        {% set status_class = "success" %}
+      {% elif order.status == "部分退貨" %}
+        {% set status_class = "warning" %}
+      {% elif order.status == "已退貨" %}
+        {% set status_class = "danger" %}
+      {% elif order.status == "已取消" %}
+        {% set status_class = "dark" %}
+      {% endif %}
+      <span class="badge text-bg-{{ status_class }}">{{ order.status }}</span>
+    </dd>
+    <dt class="col-sm-2">客戶編號</dt><dd class="col-sm-4">{{ order.customer.customer_code if order.customer else "-" }}</dd>
+    <dt class="col-sm-2">客戶名稱</dt><dd class="col-sm-4">{{ order.customer.name if order.customer else "-" }}</dd>
+    <dt class="col-sm-2">電話</dt><dd class="col-sm-4">{{ order.customer.phone if order.customer else "-" }}</dd>
+    <dt class="col-sm-2">客源</dt><dd class="col-sm-4">{{ order.order_source.name if order.order_source else "-" }}</dd>
+    <dt class="col-sm-2">建立時間</dt><dd class="col-sm-4">{{ order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "-" }}</dd>
+    <dt class="col-sm-2">完成時間</dt><dd class="col-sm-4">{{ order.completed_at.strftime("%Y-%m-%d %H:%M") if order.completed_at else "-" }}</dd>
+    <dt class="col-sm-2">備註</dt><dd class="col-sm-10">{{ order.note or "-" }}</dd>
+  </dl>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">商品明細</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle order-items-table">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 76px;">商品圖片</th>
+          <th>商品編號</th>
+          <th>商品名稱</th>
+          <th>顏色</th>
+          <th>尺寸</th>
+          <th class="text-end">訂購數量</th>
+          <th class="text-end">已配貨</th>
+          <th class="text-end">待貨</th>
+          <th>狀態</th>
+          <th class="text-end">正常退貨數量</th>
+          <th class="text-end">瑕疵退貨數量</th>
+          <th class="text-end">實際成交數量</th>
+          <th class="text-end">目前庫存</th>
+          <th class="text-end">單價</th>
+          <th class="text-end">退貨金額</th>
+          <th class="text-end">小計</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items %}
+        {% set item_summary = return_summary.get(item.id) %}
+        <tr>
+          <td>
+            {% if item.product and item.product.image_path %}
+              <img
+                class="order-product-thumb product-preview-trigger"
+                src="{{ url_for('static', filename=item.product.image_path) }}"
+                data-preview-src="{{ url_for('static', filename=item.product.image_path) }}"
+                alt="{{ item.product.name }}"
+              >
+            {% else %}
+              <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+            {% endif %}
+          </td>
+          <td>{{ item.product.sku }}</td>
+          <td>{{ item.product.name }}</td>
+          <td>{{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}</td>
+          <td>{{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}</td>
+          <td class="text-end">{{ item.quantity }}</td>
+          <td class="text-end">{{ item.allocated_quantity or 0 }}</td>
+          <td class="text-end text-danger">{{ item.backorder_quantity or 0 }}</td>
+          <td>
+            {% if item.backorder_quantity > 0 %}
+              <span class="badge text-bg-warning">{{ item.fulfillment_status }}</span>
+            {% else %}
+              <span class="badge text-bg-success">已齊貨</span>
+            {% endif %}
+          </td>
+          <td class="text-end">{{ item_summary.normal if item_summary else 0 }}</td>
+          <td class="text-end">{{ item_summary.defective if item_summary else 0 }}</td>
+          <td class="text-end fw-semibold">{{ item_summary.actual if item_summary else item.quantity }}</td>
+          <td class="text-end">{{ item.product_variant.stock if item.product_variant else 0 }}</td>
+          <td class="text-end">${{ "%.0f"|format(item.unit_price or 0) }}</td>
+          <td class="text-end text-danger">-${{ "%.0f"|format(item_summary.returned_amount if item_summary else 0) }}</td>
+          <td class="text-end">${{ "%.0f"|format(item_summary.actual_amount if item_summary else item.subtotal or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3">
+  <div class="row justify-content-end">
+    <div class="col-md-4">
+      <div class="d-flex justify-content-between"><span>商品總額</span><strong>${{ "%.0f"|format(amount_breakdown.original_total or 0) }}</strong></div>
+      <div class="d-flex justify-content-between text-danger"><span>退貨金額</span><strong>-${{ "%.0f"|format(amount_breakdown.return_amount or 0) }}</strong></div>
+      <div class="d-flex justify-content-between"><span>折扣</span><strong>${{ "%.0f"|format(amount_breakdown.discount_amount or 0) }}</strong></div>
+      <div class="d-flex justify-content-between"><span>運費</span><strong>${{ "%.0f"|format(amount_breakdown.shipping_fee or 0) }}</strong></div>
+      <hr>
+      <div class="d-flex justify-content-between h5"><span>訂單總額</span><strong>${{ "%.0f"|format(amount_breakdown.order_total or 0) }}</strong></div>
+    </div>
+  </div>
+</section>
+
+{% include "orders/_return_modal.html" %}
+
+{% if can_complete_order(order) %}
+<div class="modal fade" id="completeModal{{ order.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">完成訂單</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">確認此訂單已交付給客戶？</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <form method="post" action="{{ url_for('orders.complete', order_id=order.id) }}">
+          <button class="btn btn-success" type="submit">確認完成</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="product-hover-preview order-hover-preview" id="productHoverPreview" data-preview-size="240" aria-hidden="true">
+  <img src="" alt="">
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>DEAR服飾 批發訂單明細 - {{ order.order_no }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    body { background: #fff; color: #000; font-family: "Microsoft JhengHei", Arial, sans-serif; font-size: 13px; }
+    .toolbar { margin-bottom: 16px; }
+    .print-page { max-width: 190mm; margin: 0 auto; }
+    h1 { text-align: center; font-size: 22px; margin: 0 0 18px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
+    th { background: #fff; }
+    .meta td { border: 0; padding: 4px 0; }
+    .text-end { text-align: right; }
+    .amounts { width: 45%; margin-left: auto; margin-top: 16px; }
+    .amounts td { border: 0; border-bottom: 1px solid #000; }
+    .note { border: 1px solid #000; min-height: 70px; padding: 8px; margin-top: 16px; white-space: pre-wrap; }
+    .signatures { display: flex; justify-content: space-between; margin-top: 48px; font-size: 16px; }
+    @media print {
+      .toolbar { display: none; }
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">列印</button>
+  </div>
+  <main class="print-page">
+    <h1>DEAR服飾 批發訂單明細</h1>
+
+    <table class="meta">
+      <tr>
+        <td>訂單編號：{{ order.order_no }}</td>
+        <td>訂單日期：{{ order.order_date.strftime("%Y-%m-%d") if order.order_date else "-" }}</td>
+      </tr>
+      <tr>
+        <td>客戶編號：{{ order.customer.customer_code if order.customer else "-" }}</td>
+        <td>客戶名稱：{{ order.customer.name if order.customer else "-" }}</td>
+      </tr>
+      <tr>
+        <td>電話：{{ order.customer.phone if order.customer else "-" }}</td>
+        <td>客源：{{ order.order_source.name if order.order_source else "-" }}</td>
+      </tr>
+    </table>
+
+    <table style="margin-top: 16px;">
+      <thead>
+        <tr>
+          <th>商品編號</th>
+          <th>商品名稱</th>
+          <th>顏色</th>
+          <th>尺寸</th>
+          <th class="text-end">數量</th>
+          <th class="text-end">單價</th>
+          <th class="text-end">退貨金額</th>
+          <th class="text-end">小計</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items %}
+        {% set item_summary = return_summary.get(item.id) if return_summary else none %}
+        {% set actual_quantity = item_summary.actual if item_summary else item.quantity %}
+        <tr>
+          <td>{{ item.product.sku }}</td>
+          <td>{{ item.product.name }}</td>
+          <td>{{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}</td>
+          <td>{{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}</td>
+          <td class="text-end">{{ actual_quantity }}</td>
+          <td class="text-end">{{ "%.0f"|format(item.unit_price or 0) }}</td>
+          <td class="text-end">-{{ "%.0f"|format(item_summary.returned_amount if item_summary else 0) }}</td>
+          <td class="text-end">{{ "%.0f"|format(actual_quantity * (item.unit_price or 0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="amounts">
+      <tr><td>商品總額</td><td class="text-end">{{ "%.0f"|format(amount_breakdown.original_total or 0) }}</td></tr>
+      <tr><td>退貨金額</td><td class="text-end">-{{ "%.0f"|format(amount_breakdown.return_amount or 0) }}</td></tr>
+      <tr><td>折扣</td><td class="text-end">{{ "%.0f"|format(amount_breakdown.discount_amount or 0) }}</td></tr>
+      <tr><td>運費</td><td class="text-end">{{ "%.0f"|format(amount_breakdown.shipping_fee or 0) }}</td></tr>
+      <tr><td><strong>訂單總額</strong></td><td class="text-end"><strong>{{ "%.0f"|format(amount_breakdown.order_total or 0) }}</strong></td></tr>
+    </table>
+
+    <div style="margin-top: 20px;">備註區</div>
+    <div class="note">{{ order.note or "" }}</div>
+
+    <div class="signatures">
+      <div>經手人：____________</div>
+      <div>客戶簽收：____________</div>
+    </div>
+  </main>
+</body>
+</html>

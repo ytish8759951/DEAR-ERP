@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% macro product_thumb(product) -%}
+  {% if product.image_path %}
+  <img class="order-product-thumb product-preview-trigger" src="{{ url_for('static', filename=product.image_path) }}" data-preview-src="{{ url_for('static', filename=product.image_path) }}" alt="{{ product.name }}">
+  {% else %}
+  <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ action }}</h1>
+    <div class="text-secondary">設定團購資料、加入商品與各規格可下單數量。</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.index') }}">返回團購列表</a>
+</div>
+
+{% if errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  <ul class="mb-0 mt-2">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" id="groupBuyForm">
+  <section class="bg-white border rounded p-3 mb-4">
+    <h2 class="h5">團購資料</h2>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">團購編號</label>
+        <input class="form-control" name="group_buy_no" value="{{ group_buy.group_buy_no }}" readonly>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">團購名稱</label>
+        <input class="form-control" name="name" value="{{ group_buy.name or '' }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">開始時間</label>
+        <input class="form-control" type="datetime-local" name="start_at" value="{{ group_buy.start_date.strftime('%Y-%m-%d') if group_buy.start_date else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">結束時間</label>
+        <input class="form-control" type="datetime-local" name="end_at" value="{{ group_buy.end_date.strftime('%Y-%m-%d') if group_buy.end_date else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">狀態</label>
+        <select class="form-select" name="status">
+          {% for status in statuses %}
+          <option value="{{ status }}" {% if group_buy.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">團購說明</label>
+        <textarea class="form-control" name="description" rows="3">{{ group_buy.description or '' }}</textarea>
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">備註</label>
+        <textarea class="form-control" name="note" rows="2">{{ group_buy.note or '' }}</textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white border rounded p-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+      <h2 class="h5 mb-0">已加入團購商品</h2>
+      <div class="btn-group btn-group-sm flex-wrap">
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="reset">全部套用原售價</button>
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="95">全部95折</button>
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="90">全部9折</button>
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="minus">全部減價</button>
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="plus">全部加價</button>
+        <button class="btn btn-outline-secondary gb-batch" type="button" data-action="limit">全部可下單數量</button>
+      </div>
+    </div>
+
+    <div id="groupBuyItems" class="group-buy-card-list">
+      {% for product_group in group_buy.items|sort(attribute="product.sku")|groupby("product_id") %}
+      {% set first = product_group.list[0] %}
+      <div class="group-buy-product-card border rounded p-3 mb-3" data-product-id="{{ first.product_id }}" data-original-price="{{ first.original_price or 0 }}">
+        <div class="d-flex flex-column flex-lg-row gap-3">
+          <div>{{ product_thumb(first.product) }}</div>
+          <div class="flex-grow-1">
+            <div class="d-flex flex-wrap justify-content-between gap-3">
+              <div>
+                <div class="fw-semibold">{{ first.product.name }}</div>
+                <div class="text-secondary small">商品編號：{{ first.product.sku }}</div>
+                <div class="text-secondary small">供貨模式：{{ first.supply_mode }}</div>
+              </div>
+              <div class="text-lg-end">
+                <div class="small text-secondary">原售價</div>
+                <div class="fw-semibold">${{ "%.0f"|format(first.original_price or 0) }}</div>
+              </div>
+              <div style="min-width: 160px;">
+                <label class="form-label small mb-1">團購價</label>
+                <input class="form-control form-control-sm text-end gb-product-price" type="number" min="0" value="{{ first.group_price or 0 }}">
+              </div>
+              <div class="text-lg-end">
+                <div class="small text-secondary">本商品可下單總數</div>
+                <div class="fw-semibold gb-product-limit-total">0</div>
+              </div>
+              <div>
+                <button class="btn btn-sm btn-outline-danger gb-remove-product" type="button">移除整個商品</button>
+              </div>
+            </div>
+
+            <div class="gb-spec-list mt-3">
+              {% for color_group in product_group.list|sort(attribute="product_variant.size.name")|groupby("product_variant.color.name") %}
+              <div class="gb-color-group border-top pt-2 mt-2" data-color="{{ color_group.grouper or '-' }}">
+                <div class="fw-semibold mb-2">{{ color_group.grouper or "-" }}</div>
+                <div class="row g-2">
+                  {% for item in color_group.list|sort(attribute="product_variant.size.name") %}
+                  <div class="col-sm-6 col-lg-4 gb-spec-item" data-variant-id="{{ item.product_variant_id }}">
+                    <input type="hidden" name="variant_id" value="{{ item.product_variant_id }}">
+                    <input type="hidden" name="supply_mode_{{ item.product_variant_id }}" value="{{ item.supply_mode }}">
+                    <input class="gb-price-hidden" type="hidden" name="group_price_{{ item.product_variant_id }}" value="{{ item.group_price or 0 }}">
+                    <div class="border rounded p-2 h-100">
+                      <div class="d-flex justify-content-between gap-2">
+                        <span class="fw-semibold">{{ item.product_variant.size.name if item.product_variant.size else "-" }}</span>
+                        <span class="text-secondary small">目前庫存 {{ item.product_variant.stock or 0 }}</span>
+                      </div>
+                      <label class="form-label small mt-2 mb-1">可下單數量</label>
+                      <input class="form-control form-control-sm text-end gb-limit" type="number" min="0" name="order_limit_{{ item.product_variant_id }}" value="{{ item.order_limit or 0 }}">
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not group_buy.items %}
+      <div id="emptyGroupBuyItems" class="text-center text-secondary py-3 border rounded">尚未加入商品。</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="bg-white border rounded p-3 mb-4">
+    <h2 class="h5">商品搜尋區</h2>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">商品編號</label>
+        <input class="form-control" name="sku" value="{{ filters.sku }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">商品名稱</label>
+        <input class="form-control" name="product_name" value="{{ filters.name }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">廠商</label>
+        <select class="form-select" name="supplier_id">
+          <option value="">全部</option>
+          {% for supplier in suppliers %}
+          <option value="{{ supplier.id }}" {% if filters.supplier_id == supplier.id|string %}selected{% endif %}>{{ supplier.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">顏色</label>
+        <select class="form-select" name="color_id">
+          <option value="">全部</option>
+          {% for color in colors %}
+          <option value="{{ color.id }}" {% if filters.color_id == color.id|string %}selected{% endif %}>{{ color.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">尺寸</label>
+        <select class="form-select" name="size_id">
+          <option value="">全部</option>
+          {% for size in sizes %}
+          <option value="{{ size.id }}" {% if filters.size_id == size.id|string %}selected{% endif %}>{{ size.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">放置位置</label>
+        <select class="form-select" name="location_id">
+          <option value="">全部</option>
+          {% for location in locations %}
+          <option value="{{ location.id }}" {% if filters.location_id == location.id|string %}selected{% endif %}>{{ location.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ request.path }}">重設</a>
+        <button class="btn btn-dark" type="submit" formmethod="get" name="product_page" value="1">查詢</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white border rounded p-3 mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h2 class="h5 mb-0">商品搜尋結果列表</h2>
+      <div class="text-secondary small">每頁 20 筆</div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>商品圖片</th>
+            <th>商品編號</th>
+            <th>商品名稱</th>
+            <th>顏色</th>
+            <th>尺寸</th>
+            <th class="text-end">目前庫存</th>
+            <th class="text-end">原售價</th>
+            <th>供貨模式</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for variant in variant_rows %}
+          {% set product = variant.product %}
+          {% if variant.id not in selected_variant_ids %}
+          <tr>
+            <td>{{ product_thumb(product) }}</td>
+            <td class="fw-semibold">{{ product.sku }}</td>
+            <td>{{ product.name }}</td>
+            <td>{{ variant.color.name if variant.color else "-" }}</td>
+            <td>{{ variant.size.name if variant.size else "-" }}</td>
+            <td class="text-end">{{ variant.stock }}</td>
+            <td class="text-end">${{ "%.0f"|format(product.price or 0) }}</td>
+            <td>{{ product.supply_mode or "一般商品" }}</td>
+            <td>
+              {% if product.supply_mode == "出清商品" and variant.stock <= 0 %}
+              <span class="badge text-bg-danger">已售完</span>
+              {% else %}
+              <button
+                class="btn btn-sm btn-outline-primary gb-add-product"
+                type="button"
+                data-product-id="{{ product.id }}"
+                data-variant-id="{{ variant.id }}"
+                data-image="{{ url_for('static', filename=product.image_path) if product.image_path else '' }}"
+                data-sku="{{ product.sku }}"
+                data-name="{{ product.name }}"
+                data-color="{{ variant.color.name if variant.color else '-' }}"
+                data-size="{{ variant.size.name if variant.size else '-' }}"
+                data-stock="{{ variant.stock }}"
+                data-price="{{ product.price or 0 }}"
+                data-supply-mode="{{ product.supply_mode or '一般商品' }}"
+              >加入團購</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% else %}
+          <tr><td colspan="9" class="text-center text-secondary py-4">查無商品。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="text-secondary small">第 {{ variant_pagination.page }} / {{ variant_pagination.pages or 1 }} 頁</div>
+      <div class="btn-group">
+        <button class="btn btn-outline-secondary" type="submit" formmethod="get" name="product_page" value="{{ variant_pagination.prev_num }}" {% if not variant_pagination.has_prev %}disabled{% endif %}>上一頁</button>
+        <button class="btn btn-outline-secondary" type="submit" formmethod="get" name="product_page" value="{{ variant_pagination.next_num }}" {% if not variant_pagination.has_next %}disabled{% endif %}>下一頁</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="d-flex justify-content-end gap-2 mb-4">
+    <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.index') }}">取消</a>
+    <button class="btn btn-dark" type="submit">儲存團購</button>
+  </div>
+</form>
+{% endblock %}

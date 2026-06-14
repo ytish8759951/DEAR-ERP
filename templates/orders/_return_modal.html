@@ -1,0 +1,178 @@
+{% macro return_form(order, return_summary, return_type, title) %}
+<section class="border rounded p-3 mb-3">
+  <h3 class="h6 mb-3">{{ title }}</h3>
+  <form class="return-form" method="post" action="{{ url_for('orders.create_return', order_id=order.id) }}">
+    <input type="hidden" name="return_type" value="{{ return_type }}">
+    <div class="row g-3">
+      <div class="col-12">
+        <label class="form-label">商品 / 顏色 / 尺寸</label>
+        <select class="form-select" name="order_item_id" required>
+          {% for item in order.items %}
+            {% set item_summary = return_summary.get(item.id) %}
+            {% set remaining = item_summary.remaining if item_summary else item.quantity %}
+            <option value="{{ item.id }}" data-remaining="{{ remaining }}" {% if remaining <= 0 %}disabled{% endif %}>
+              {{ item.product.sku if item.product else "-" }}
+              {{ item.product.name if item.product else "-" }}
+              /
+              {{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}
+              /
+              {{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}
+              （剩餘可退 {{ remaining }}）
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">退貨數量</label>
+        <input class="form-control return-quantity" type="number" name="quantity" min="1" value="1" required>
+        <div class="return-quantity-warning text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">退貨原因</label>
+        <input class="form-control" name="reason" maxlength="255" placeholder="例如：尺寸不合、商品瑕疵">
+      </div>
+      <div class="col-12">
+        <label class="form-label">備註</label>
+        <textarea class="form-control" name="note" rows="2"></textarea>
+      </div>
+      <div class="col-12 text-end">
+        <button class="btn btn-dark" type="submit">{{ title }}</button>
+      </div>
+    </div>
+  </form>
+</section>
+{% endmacro %}
+
+<div class="modal fade" id="returnModal{{ order.id }}" tabindex="-1" aria-labelledby="returnModalLabel{{ order.id }}" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="returnModalLabel{{ order.id }}">退貨管理 - {{ order.order_no }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <section class="mb-4">
+          <h3 class="h6 mb-3">此訂單退貨紀錄</h3>
+          {% set return_records = order.returns|sort(attribute="created_at") %}
+          {% if return_records %}
+            {% for return_record in return_records %}
+            <div class="border rounded p-3 mb-3">
+              <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                <strong>第{{ loop.index }}筆退貨</strong>
+                <span class="text-secondary small">
+                  {{ return_record.return_type }}
+                  /
+                  {{ return_record.created_at.strftime("%Y-%m-%d %H:%M") if return_record.created_at else "-" }}
+                </span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>退貨日期</th>
+                      <th>商品</th>
+                      <th>顏色</th>
+                      <th>尺寸</th>
+                      <th class="text-end">退貨數量</th>
+                      <th class="text-end">退貨金額</th>
+                      <th>退貨原因</th>
+                      <th>備註</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for return_item in return_record.items %}
+                    <tr>
+                      <td>{{ return_record.created_at.strftime("%Y-%m-%d") if return_record.created_at else "-" }}</td>
+                      <td>{{ return_item.product.sku if return_item.product else "-" }} {{ return_item.product.name if return_item.product else "" }}</td>
+                      <td>{{ return_item.product_variant.color.name if return_item.product_variant and return_item.product_variant.color else "-" }}</td>
+                      <td>{{ return_item.product_variant.size.name if return_item.product_variant and return_item.product_variant.size else "-" }}</td>
+                      <td class="text-end">{{ return_item.quantity }}</td>
+                      <td class="text-end text-danger">-${{ "%.0f"|format(return_item.quantity * (return_item.order_item.unit_price or 0)) }}</td>
+                      <td>{{ return_item.reason or return_record.reason or "-" }}</td>
+                      <td>{{ return_item.note or return_record.note or "-" }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-secondary border rounded p-3">尚無退貨紀錄</div>
+          {% endif %}
+        </section>
+
+        {% set total_remaining = return_summary.values()|sum(attribute="remaining") %}
+        {% if order.status == "已取消" %}
+          <div class="alert alert-secondary mb-0">已取消訂單不可新增退貨。</div>
+        {% elif total_remaining <= 0 %}
+          <div class="alert alert-secondary mb-0">此訂單商品已全部退貨。</div>
+        {% else %}
+          <div class="row g-3">
+            <div class="col-lg-6">{{ return_form(order, return_summary, "正常退貨", "新增正常退貨") }}</div>
+            <div class="col-lg-6">{{ return_form(order, return_summary, "瑕疵退貨", "新增瑕疵退貨") }}</div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  if (window.returnQuantityValidationInitialized) return;
+  window.returnQuantityValidationInitialized = true;
+
+  function selectedRemaining(form) {
+    const select = form.querySelector('select[name="order_item_id"]');
+    const selected = select?.options[select.selectedIndex];
+    return Number(selected?.dataset.remaining || 0);
+  }
+
+  function validateReturnForm(form) {
+    const quantityInput = form.querySelector(".return-quantity");
+    const warning = form.querySelector(".return-quantity-warning");
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (!quantityInput || !warning || !submitButton) return true;
+
+    const remaining = selectedRemaining(form);
+    const quantity = Number(quantityInput.value || 0);
+    const invalid = quantity > remaining;
+    if (invalid) {
+      quantityInput.classList.add("is-invalid");
+      warning.textContent = `退貨數量不可超過剩餘可退數量，目前剩餘可退 ${remaining} 件`;
+      warning.classList.remove("d-none");
+      submitButton.disabled = true;
+      return false;
+    }
+
+    quantityInput.classList.remove("is-invalid");
+    warning.textContent = "";
+    warning.classList.add("d-none");
+    submitButton.disabled = false;
+    return true;
+  }
+
+  document.querySelectorAll(".return-form").forEach((form) => {
+    form.addEventListener("input", (event) => {
+      if (event.target.matches(".return-quantity")) {
+        validateReturnForm(form);
+      }
+    });
+    form.addEventListener("change", (event) => {
+      if (event.target.matches('select[name="order_item_id"]')) {
+        validateReturnForm(form);
+      }
+    });
+    form.addEventListener("submit", (event) => {
+      if (!validateReturnForm(form)) {
+        event.preventDefault();
+      }
+    });
+    validateReturnForm(form);
+  });
+})();
+</script>

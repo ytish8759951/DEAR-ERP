@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">庫存異動紀錄</h1>
+    <div class="text-secondary">檢視訂單、退貨與手動調整產生的庫存異動。</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('operations.inventory') }}">庫存總覽</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('operations.defective_inventory') }}">瑕疵庫存</a>
+  </div>
+</div>
+
+<form class="d-flex justify-content-end align-items-center gap-2 mb-3" method="get">
+  <label class="form-label mb-0">每頁</label>
+  <select class="form-select form-select-sm" name="per_page" onchange="this.form.submit()" style="width: 96px;">
+    {% for size in page_size_options %}
+      <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>異動時間</th>
+        <th>商品編號</th>
+        <th>商品名稱</th>
+        <th>顏色</th>
+        <th>尺寸</th>
+        <th>異動類型</th>
+        <th class="text-end">異動前數量</th>
+        <th class="text-end">異動數量</th>
+        <th class="text-end">異動後數量</th>
+        <th>來源單號</th>
+        <th>操作人</th>
+        <th>備註</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.created_at.strftime("%Y-%m-%d %H:%M") if log.created_at else "-" }}</td>
+        <td class="fw-semibold">{{ log.product.sku if log.product else "-" }}</td>
+        <td>{{ log.product.name if log.product else "-" }}</td>
+        <td>{{ log.product_variant.color.name if log.product_variant and log.product_variant.color else "-" }}</td>
+        <td>{{ log.product_variant.size.name if log.product_variant and log.product_variant.size else "-" }}</td>
+        <td>{{ log.movement_type }}</td>
+        <td class="text-end">{{ log.before_quantity if log.before_quantity is not none else "-" }}</td>
+        <td class="text-end">{{ log.quantity }}</td>
+        <td class="text-end">{{ log.after_quantity if log.after_quantity is not none else "-" }}</td>
+        <td>{{ log.source_no or (log.reference_type ~ "#" ~ log.reference_id if log.reference_type and log.reference_id else "-") }}</td>
+        <td>{{ log.operator or "-" }}</td>
+        <td>{{ log.note or "-" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="text-center text-secondary py-5">尚無庫存異動紀錄</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁</div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('operations.inventory_logs', page=pagination.prev_num, per_page=pagination.per_page) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('operations.inventory_logs', page=pagination.next_num, per_page=pagination.per_page) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endblock %}

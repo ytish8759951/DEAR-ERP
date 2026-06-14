@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div><h1 class="h3 mb-1">{{ title }}</h1><div class="text-secondary">客戶編號不可手動修改。</div></div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('customers.index') }}">返回列表</a>
+</div>
+{% if errors %}
+<div class="alert alert-danger">
+  <div class="fw-semibold">請確認必填欄位是否已完整填寫。</div>
+  <ul class="mb-0 mt-2">
+    {% for field, message in field_errors.items() %}
+    <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form class="bg-white border rounded p-3" method="post" id="customerForm" action="{{ action }}">
+  <div class="row g-3">
+    <div class="col-md-3"><label class="form-label">客戶編號</label><input class="form-control" value="{{ customer.customer_code or '自動產生' }}" readonly></div>
+    <div class="col-md-3"><label class="form-label">客戶名稱</label><input class="form-control {% if field_errors['name'] %}is-invalid{% endif %}" name="name" value="{{ customer.name or '' }}" required>{% if field_errors['name'] %}<div class="text-danger small mt-1">{{ field_errors['name'] }}</div>{% endif %}</div>
+    <div class="col-md-3"><label class="form-label">電話</label><input class="form-control" name="phone" value="{{ customer.phone or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">LINE</label><input class="form-control" name="line" value="{{ customer.line or '' }}"></div>
+    <div class="col-md-3">
+      <label class="form-label">客戶分類</label>
+      <select class="form-select {% if field_errors['category_id'] %}is-invalid{% endif %}" name="category_id" id="categorySelect">
+        <option value="">未指定</option>
+        {% for category in categories %}
+          <option value="{{ category.id }}" {% if customer.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="text-danger small mt-1 {% if not form_error %}d-none{% endif %}" id="wholesaleWarning">{{ form_error or "請先勾選已繳批發金，才能設定為批發客" }}</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">已繳批發金</label>
+      <div class="form-check form-switch mt-2">
+        <input class="form-check-input" type="checkbox" name="wholesale_paid" value="1" id="wholesalePaid" {% if customer.wholesale_paid %}checked{% endif %}>
+        <label class="form-check-label" for="wholesalePaid">已繳</label>
+      </div>
+    </div>
+    <div class="col-md-3"><label class="form-label">批發金繳費日期</label><input class="form-control" type="date" name="wholesale_paid_date" value="{{ customer.wholesale_paid_date.isoformat() if customer.wholesale_paid_date else '' }}"></div>
+    <div class="col-md-3">
+      <label class="form-label">狀態</label>
+      <select class="form-select" name="is_active">
+        <option value="1" {% if customer.is_active %}selected{% endif %}>啟用</option>
+        <option value="0" {% if not customer.is_active %}selected{% endif %}>停用</option>
+      </select>
+    </div>
+    <div class="col-12"><label class="form-label">地址</label><input class="form-control" name="address" value="{{ customer.address or '' }}"></div>
+    <div class="col-12"><label class="form-label">備註</label><textarea class="form-control" name="note" rows="4">{{ customer.note or '' }}</textarea></div>
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('customers.index') }}">取消</a>
+      <button class="btn btn-dark" type="submit">儲存</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(() => {
+  const categorySelect = document.getElementById("categorySelect");
+  const wholesalePaid = document.getElementById("wholesalePaid");
+  const warning = document.getElementById("wholesaleWarning");
+  const warningMessage = "請先勾選已繳批發金，才能設定為批發客";
+  const wholesaleCategoryId = "{{ wholesale_category.id if wholesale_category else '' }}";
+  const normalCategoryId = "{{ normal_category.id if normal_category else '' }}";
+
+  function isWholesaleSelected() {
+    return wholesaleCategoryId && categorySelect.value === wholesaleCategoryId;
+  }
+
+  function showWarning() {
+    warning.textContent = warningMessage;
+    warning.classList.remove("d-none");
+    categorySelect.classList.add("is-invalid");
+  }
+
+  function hideWarning() {
+    warning.classList.add("d-none");
+    categorySelect.classList.remove("is-invalid");
+  }
+
+  categorySelect.addEventListener("change", () => {
+    if (isWholesaleSelected() && !wholesalePaid.checked) {
+      showWarning();
+      categorySelect.value = normalCategoryId || "";
+    } else {
+      hideWarning();
+    }
+  });
+
+  wholesalePaid.addEventListener("change", () => {
+    if (!wholesalePaid.checked && isWholesaleSelected()) {
+      categorySelect.value = normalCategoryId || "";
+      showWarning();
+    } else {
+      hideWarning();
+    }
+  });
+
+  document.getElementById("customerForm").addEventListener("submit", (event) => {
+    if (isWholesaleSelected() && !wholesalePaid.checked) {
+      event.preventDefault();
+      showWarning();
+    }
+  });
+})();
+</script>
+{% endblock %}

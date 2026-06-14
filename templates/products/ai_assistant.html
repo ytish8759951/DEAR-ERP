@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">AI商品助手</h1>
+    <div class="text-secondary">AI商品助手已整合在新增商品與編輯商品頁面。</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('products.create') }}">前往新增商品</a>
+</div>
+
+<div class="empty-panel">
+  請到商品管理的新增商品或編輯商品頁使用 AI辨識商品、AI產生商品名稱、尺寸表、商品文案、LINE團購文與直播話術。
+</div>
+{% endblock %}

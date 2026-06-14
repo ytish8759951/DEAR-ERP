@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">廠商列表</h1>
+    <div class="text-secondary">管理廠商資料，供商品新增與編輯時選用。</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('suppliers.create') }}">+ 新增廠商</a>
+</div>
+
+<section class="search-panel mb-4">
+  <form method="get" action="{{ url_for('suppliers.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">廠商名稱</label>
+        <input class="form-control" name="name" value="{{ filters.name }}" placeholder="輸入廠商名稱">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">聯絡人</label>
+        <input class="form-control" name="contact_person" value="{{ filters.contact_person }}" placeholder="輸入聯絡人">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">電話</label>
+        <input class="form-control" name="phone" value="{{ filters.phone }}" placeholder="輸入電話">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">每頁筆數</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+            <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('suppliers.index') }}">清除</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>廠商名稱</th>
+        <th>聯絡人</th>
+        <th>電話</th>
+        <th>LINE</th>
+        <th>地址</th>
+        <th>備註</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for supplier in suppliers %}
+      <tr>
+        <td class="fw-semibold">{{ supplier.name }}</td>
+        <td>{{ supplier.contact_person or "-" }}</td>
+        <td>{{ supplier.phone or "-" }}</td>
+        <td>{{ supplier.line or "-" }}</td>
+        <td>{{ supplier.address or "-" }}</td>
+        <td class="text-truncate" style="max-width: 220px;">{{ supplier.note or "-" }}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#supplierModal{{ supplier.id }}">查看</button>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('suppliers.edit', supplier_id=supplier.id) }}">編輯</a>
+          <form class="d-inline" method="post" action="{{ url_for('suppliers.delete', supplier_id=supplier.id) }}" onsubmit="return confirm('確定刪除此廠商？')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">刪除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center text-secondary py-5">查無符合條件的廠商</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">
+    共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁
+  </div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('suppliers.index', page=pagination.prev_num, per_page=pagination.per_page, name=filters.name, contact_person=filters.contact_person, phone=filters.phone) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('suppliers.index', page=pagination.next_num, per_page=pagination.per_page, name=filters.name, contact_person=filters.contact_person, phone=filters.phone) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+{% for supplier in suppliers %}
+<div class="modal fade" id="supplierModal{{ supplier.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ supplier.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">廠商名稱</dt>
+          <dd class="col-sm-9">{{ supplier.name }}</dd>
+          <dt class="col-sm-3">聯絡人</dt>
+          <dd class="col-sm-9">{{ supplier.contact_person or "-" }}</dd>
+          <dt class="col-sm-3">電話</dt>
+          <dd class="col-sm-9">{{ supplier.phone or "-" }}</dd>
+          <dt class="col-sm-3">LINE</dt>
+          <dd class="col-sm-9">{{ supplier.line or "-" }}</dd>
+          <dt class="col-sm-3">地址</dt>
+          <dd class="col-sm-9">{{ supplier.address or "-" }}</dd>
+          <dt class="col-sm-3">備註</dt>
+          <dd class="col-sm-9">{{ supplier.note or "-" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

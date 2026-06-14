@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div><h1 class="h3 mb-1">{{ customer.name }}</h1><div class="text-secondary">{{ customer.customer_code }}</div></div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('customers.index') }}">返回列表</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('customers.edit', customer_id=customer.id) }}">編輯</a>
+    {% if customer.is_active %}
+    <form method="post" action="{{ url_for('customers.deactivate', customer_id=customer.id) }}" onsubmit="return confirm('{{ '此客戶仍有未完成訂單，確定停用？' if has_unfinished_orders else '確定停用此客戶？' }}')">
+      <button class="btn btn-outline-danger" type="submit">停用</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('customers.activate', customer_id=customer.id) }}">
+      <button class="btn btn-outline-success" type="submit">啟用</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">客戶基本資料</h2>
+  <dl class="row mb-0">
+    <dt class="col-sm-2">客戶編號</dt><dd class="col-sm-4">{{ customer.customer_code }}</dd>
+    <dt class="col-sm-2">狀態</dt><dd class="col-sm-4"><span class="badge text-bg-{{ 'success' if customer.is_active else 'danger' }}">{{ "啟用" if customer.is_active else "停用" }}</span></dd>
+    <dt class="col-sm-2">客戶名稱</dt><dd class="col-sm-4">{{ customer.name }}</dd>
+    <dt class="col-sm-2">電話</dt><dd class="col-sm-4">{{ customer.phone or "-" }}</dd>
+    <dt class="col-sm-2">LINE</dt><dd class="col-sm-4">{{ customer.line or "-" }}</dd>
+    <dt class="col-sm-2">客戶分類</dt><dd class="col-sm-4">{{ customer.category.name if customer.category else "-" }}</dd>
+    <dt class="col-sm-2">地址</dt><dd class="col-sm-10">{{ customer.address or "-" }}</dd>
+    <dt class="col-sm-2">備註</dt><dd class="col-sm-10">{{ customer.note or "-" }}</dd>
+  </dl>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">批發金狀態</h2>
+  <div class="d-flex flex-wrap gap-4">
+    <div><span class="text-secondary">是否已繳：</span><strong>{{ "已繳" if customer.wholesale_paid else "未繳" }}</strong></div>
+    <div><span class="text-secondary">繳費日期：</span><strong>{{ customer.wholesale_paid_date.strftime("%Y-%m-%d") if customer.wholesale_paid_date else "-" }}</strong></div>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">歷史訂單</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light"><tr><th>訂單編號</th><th>日期</th><th>客源</th><th>訂單狀態</th><th class="text-end">訂單金額</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td class="fw-semibold">{{ order.order_no }}</td>
+          <td>{{ order.order_date.strftime("%Y-%m-%d") if order.order_date else "-" }}</td>
+          <td>{{ order.order_source.name if order.order_source else "-" }}</td>
+          <td>{{ order.status }}</td>
+          <td class="text-end">${{ "%.0f"|format(order_amounts[order.id].order_total or 0) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('orders.detail', order_id=order.id) }}">查看</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-secondary py-4">尚無歷史訂單</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex justify-content-between align-items-center">
+    <div class="text-secondary small">共 {{ orders_pagination.total }} 筆，第 {{ orders_pagination.page }} / {{ orders_pagination.pages or 1 }} 頁</div>
+    <div class="btn-group btn-group-sm">
+      <a class="btn btn-outline-secondary {% if not orders_pagination.has_prev %}disabled{% endif %}" href="{{ url_for('customers.detail', customer_id=customer.id, page=orders_pagination.prev_num, per_page=orders_pagination.per_page, returns_page=returns_pagination.page) }}">上一頁</a>
+      <a class="btn btn-outline-secondary {% if not orders_pagination.has_next %}disabled{% endif %}" href="{{ url_for('customers.detail', customer_id=customer.id, page=orders_pagination.next_num, per_page=orders_pagination.per_page, returns_page=returns_pagination.page) }}">下一頁</a>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3">
+  <h2 class="h5">退貨紀錄</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light"><tr><th>退貨日期</th><th>訂單編號</th><th>退貨類型</th><th>商品名稱</th><th>顏色</th><th>尺寸</th><th class="text-end">退貨數量</th><th class="text-end">退貨金額</th></tr></thead>
+      <tbody>
+        {% for item in returns %}
+        <tr>
+          <td>{{ item.return_record.created_at.strftime("%Y-%m-%d") if item.return_record and item.return_record.created_at else "-" }}</td>
+          <td>{{ item.return_record.order.order_no if item.return_record and item.return_record.order else "-" }}</td>
+          <td>{{ item.return_record.return_type if item.return_record else "-" }}</td>
+          <td>{{ item.product.name if item.product else "-" }}</td>
+          <td>{{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}</td>
+          <td>{{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}</td>
+          <td class="text-end">{{ item.quantity }}</td>
+          <td class="text-end text-danger">-${{ "%.0f"|format(item.quantity * (item.order_item.unit_price or 0)) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-secondary py-4">尚無退貨紀錄</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex justify-content-between align-items-center">
+    <div class="text-secondary small">共 {{ returns_pagination.total }} 筆，第 {{ returns_pagination.page }} / {{ returns_pagination.pages or 1 }} 頁</div>
+    <div class="btn-group btn-group-sm">
+      <a class="btn btn-outline-secondary {% if not returns_pagination.has_prev %}disabled{% endif %}" href="{{ url_for('customers.detail', customer_id=customer.id, page=orders_pagination.page, per_page=returns_pagination.per_page, returns_page=returns_pagination.prev_num) }}">上一頁</a>
+      <a class="btn btn-outline-secondary {% if not returns_pagination.has_next %}disabled{% endif %}" href="{{ url_for('customers.detail', customer_id=customer.id, page=orders_pagination.page, per_page=returns_pagination.per_page, returns_page=returns_pagination.next_num) }}">下一頁</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

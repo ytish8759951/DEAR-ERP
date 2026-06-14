@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">追貨單 {{ order.order_no }}</h1>
+    <div class="text-secondary">{{ order.created_at.strftime("%Y-%m-%d") if order.created_at else "-" }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('replenishment.index') }}">返回追貨中心</a>
+</div>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">追貨單資料</h2>
+  <dl class="row mb-0">
+    <dt class="col-sm-2">追貨單號</dt><dd class="col-sm-4">{{ order.order_no }}</dd>
+    <dt class="col-sm-2">追貨單類型</dt><dd class="col-sm-4">{{ order.supplier.name if order.supplier else "綜合追貨單" }}</dd>
+    <dt class="col-sm-2">預計到貨日</dt><dd class="col-sm-4">{{ order.expected_arrival_date.strftime("%Y-%m-%d") if order.expected_arrival_date else "-" }}</dd>
+    <dt class="col-sm-2">狀態</dt>
+    <dd class="col-sm-4">
+      {% if order.status in ["已完成", "已到貨"] %}
+      已完成
+      {% else %}
+      {{ order.status }}
+      {% endif %}
+    </dd>
+    <dt class="col-sm-2">備註</dt><dd class="col-sm-10">{{ order.note or "-" }}</dd>
+  </dl>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">總計統計</h2>
+  <div class="row g-3">
+    <div class="col-md">
+      <div class="border rounded p-3">
+        <div class="text-secondary small">廠商數</div>
+        <div class="h4 mb-0">{{ totals.supplier_count }}</div>
+      </div>
+    </div>
+    <div class="col-md">
+      <div class="border rounded p-3">
+        <div class="text-secondary small">商品款數</div>
+        <div class="h4 mb-0">{{ totals.item_count }}</div>
+      </div>
+    </div>
+    <div class="col-md">
+      <div class="border rounded p-3">
+        <div class="text-secondary small">需求總數量</div>
+        <div class="h4 mb-0">{{ totals.required_quantity }}</div>
+      </div>
+    </div>
+    <div class="col-md">
+      <div class="border rounded p-3">
+        <div class="text-secondary small">已到貨總數量</div>
+        <div class="h4 mb-0">{{ totals.received_quantity }}</div>
+      </div>
+    </div>
+    <div class="col-md">
+      <div class="border rounded p-3">
+        <div class="text-secondary small">未到貨總數量</div>
+        <div class="h4 mb-0">{{ totals.remaining_quantity }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">廠商分區統計</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>廠商名稱</th>
+          <th class="text-end">商品款數</th>
+          <th class="text-end">需求總數量</th>
+          <th class="text-end">已到貨總數量</th>
+          <th class="text-end">未到貨總數量</th>
+          <th>狀態</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in supplier_rows %}
+        <tr>
+          <td>{{ stat.supplier_name }}</td>
+          <td class="text-end">{{ stat.item_count }}</td>
+          <td class="text-end">{{ stat.required_quantity }}</td>
+          <td class="text-end">{{ stat.received_quantity }}</td>
+          <td class="text-end">{{ stat.remaining_quantity }}</td>
+          <td>
+            {% if stat.status == "已完成" %}
+            <span class="badge text-bg-success">已完成</span>
+            {% elif stat.status == "部分到貨" %}
+            <span class="badge text-bg-warning">部分到貨</span>
+            {% else %}
+            <span class="badge text-bg-info">追貨中</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-secondary py-4">尚無廠商統計。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h2 class="h5 mb-0">商品明細</h2>
+  </div>
+  {% for section in supplier_sections %}
+  <div class="border rounded p-3 mb-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h3 class="h6 mb-0">【{{ section.stat.supplier_name }}】</h3>
+      <div class="d-flex flex-wrap gap-2 small">
+        <span class="badge text-bg-secondary">商品款數：{{ section.stat.item_count }}</span>
+        <span class="badge text-bg-primary">需求數量：{{ section.stat.required_quantity }}</span>
+        <span class="badge text-bg-success">已到貨：{{ section.stat.received_quantity }}</span>
+        <span class="badge text-bg-warning">未到貨：{{ section.stat.remaining_quantity }}</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle order-items-table mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 76px;">商品圖片</th>
+            <th>商品編號</th>
+            <th>商品名稱</th>
+            <th>顏色</th>
+            <th>尺寸</th>
+            <th class="text-end">需求數量</th>
+            <th class="text-end">已到貨</th>
+            <th class="text-end">未到貨</th>
+            <th>狀態</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in section.rows %}
+          <tr>
+            <td>
+              {% if row.product and row.product.image_path %}
+              <img class="order-product-thumb product-preview-trigger" src="{{ url_for('static', filename=row.product.image_path) }}" data-preview-src="{{ url_for('static', filename=row.product.image_path) }}" alt="{{ row.product.name }}">
+              {% else %}
+              <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+              {% endif %}
+            </td>
+            <td class="fw-semibold">{{ row.product.sku if row.product else "-" }}</td>
+            <td>{{ row.product.name if row.product else "-" }}</td>
+            <td>{{ row.color_name }}</td>
+            <td>{{ row.size_name }}</td>
+            <td class="text-end">{{ row.required_quantity }}</td>
+            <td class="text-end">{{ row.received_quantity }}</td>
+            <td class="text-end">{{ row.remaining_quantity }}</td>
+            <td>
+              {% if row.status == "已完成" %}
+              <span class="badge text-bg-success">已完成</span>
+              {% elif row.status == "部分到貨" %}
+              <span class="badge text-bg-warning">部分到貨</span>
+              {% else %}
+              <span class="badge text-bg-info">追貨中</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if row.remaining_quantity > 0 and order.status not in ["已完成", "已到貨", "已取消"] %}
+              <form class="d-inline" method="post" action="{{ url_for('replenishment.receive_variant', order_id=order.id, variant_id=row.variant.id) }}">
+                <input type="hidden" name="mode" value="all">
+                <button class="btn btn-sm btn-outline-success" type="submit">全部到貨</button>
+              </form>
+              <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#receiveVariant{{ row.variant.id }}">人工輸入到貨</button>
+              {% else %}
+              <span class="text-secondary small">{{ "已取消" if order.status == "已取消" else "已完成" }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-secondary py-4">沒有追貨商品。</div>
+  {% endfor %}
+</section>
+
+<section class="bg-white border rounded p-3">
+  <h2 class="h5">到貨紀錄</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>時間</th>
+          <th>廠商</th>
+          <th>商品編號</th>
+          <th>商品名稱</th>
+          <th>顏色</th>
+          <th>尺寸</th>
+          <th class="text-end">到貨數量</th>
+          <th>操作人</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for receipt in order.receipts|sort(attribute="created_at", reverse=true) %}
+        <tr>
+          <td>{{ receipt.created_at.strftime("%Y-%m-%d %H:%M") if receipt.created_at else "-" }}</td>
+          <td>{{ receipt.product.supplier.name if receipt.product and receipt.product.supplier else (order.supplier.name if order.supplier else "未指定廠商") }}</td>
+          <td>{{ receipt.product.sku if receipt.product else "-" }}</td>
+          <td>{{ receipt.product.name if receipt.product else "-" }}</td>
+          <td>{{ receipt.product_variant.color.name if receipt.product_variant and receipt.product_variant.color else "-" }}</td>
+          <td>{{ receipt.product_variant.size.name if receipt.product_variant and receipt.product_variant.size else "-" }}</td>
+          <td class="text-end">{{ receipt.quantity }}</td>
+          <td>{{ receipt.operator or "-" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-secondary">尚無到貨紀錄。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% for row in item_rows %}
+{% if row.remaining_quantity > 0 and order.status not in ["已完成", "已到貨", "已取消"] %}
+<div class="modal fade" id="receiveVariant{{ row.variant.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('replenishment.receive_variant', order_id=order.id, variant_id=row.variant.id) }}">
+      <div class="modal-header">
+        <h2 class="modal-title h5">人工輸入到貨</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="mode" value="custom">
+        <div class="mb-2 fw-semibold">{{ row.product.sku if row.product else "-" }} {{ row.product.name if row.product else "-" }}</div>
+        <div class="text-secondary mb-3">{{ row.color_name }} {{ row.size_name }}，未到貨 {{ row.remaining_quantity }} 件</div>
+        <label class="form-label">實際到貨數量</label>
+        <input class="form-control" name="quantity" type="number" min="1" step="1" value="{{ row.remaining_quantity }}" required>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-dark" type="submit">確認到貨</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<div class="product-hover-preview order-hover-preview" id="productHoverPreview" data-preview-size="240" aria-hidden="true">
+  <img src="" alt="">
+</div>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ group_buy.group_buy_no }}</h1>
+    <div class="text-secondary">{{ group_buy.name }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.index') }}">返回列表</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('group_buys.edit', group_buy_id=group_buy.id) }}">編輯</a>
+    <a class="btn btn-dark" href="{{ public_url }}" target="_blank">查看公開頁</a>
+  </div>
+</div>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">團購資料</h2>
+  <dl class="row mb-0">
+    <dt class="col-sm-2">團購編號</dt><dd class="col-sm-4">{{ group_buy.group_buy_no }}</dd>
+    <dt class="col-sm-2">狀態</dt><dd class="col-sm-4"><span class="badge text-bg-info">{{ group_buy.status }}</span></dd>
+    <dt class="col-sm-2">開始時間</dt><dd class="col-sm-4">{{ group_buy.start_date.strftime("%Y-%m-%d") if group_buy.start_date else "-" }}</dd>
+    <dt class="col-sm-2">結束時間</dt><dd class="col-sm-4">{{ group_buy.end_date.strftime("%Y-%m-%d") if group_buy.end_date else "-" }}</dd>
+    <dt class="col-sm-2">公開網址</dt><dd class="col-sm-10"><input class="form-control" value="{{ request.host_url.rstrip('/') }}{{ public_url }}" readonly></dd>
+    <dt class="col-sm-2">團購說明</dt><dd class="col-sm-10">{{ group_buy.description or "-" }}</dd>
+    <dt class="col-sm-2">備註</dt><dd class="col-sm-10">{{ group_buy.note or "-" }}</dd>
+  </dl>
+</section>
+
+<section class="bg-white border rounded p-3 mb-4">
+  <h2 class="h5">團購商品</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle order-items-table">
+      <thead class="table-light"><tr><th>商品圖片</th><th>商品編號</th><th>商品名稱</th><th>顏色</th><th>尺寸</th><th>供貨模式</th><th class="text-end">團購價</th><th class="text-end">可下單數量</th><th>預購</th></tr></thead>
+      <tbody>
+        {% for item in group_buy.items %}
+        <tr>
+          <td>{% if item.product.image_path %}<img class="order-product-thumb" src="{{ url_for('static', filename=item.product.image_path) }}" alt="{{ item.product.name }}">{% else %}<div class="order-product-thumb order-placeholder-thumb">無圖</div>{% endif %}</td>
+          <td class="fw-semibold">{{ item.product.sku }}</td><td>{{ item.product.name }}</td>
+          <td>{{ item.product_variant.color.name if item.product_variant.color else "-" }}</td><td>{{ item.product_variant.size.name if item.product_variant.size else "-" }}</td>
+          <td>{{ item.supply_mode }}</td><td class="text-end">${{ "%.0f"|format(item.group_price or 0) }}</td><td class="text-end">{{ item.order_limit }}</td><td>{{ "是" if item.allow_preorder else "否" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-secondary py-4">尚無商品。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="bg-white border rounded p-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h5 mb-0">團購訂單</h2>
+    <a class="btn btn-sm btn-outline-dark" href="{{ url_for('group_buys.orders', group_buy_no=group_buy.group_buy_no) }}">查看全部訂單</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light"><tr><th>訂單編號</th><th>客戶</th><th class="text-end">總件數</th><th class="text-end">總金額</th><th>轉單狀態</th><th>建立時間</th></tr></thead>
+      <tbody>
+        {% for order in group_buy.orders %}
+        <tr><td>{{ order.order_no }}</td><td>{{ order.customer_name }}</td><td class="text-end">{{ item_total(order) }}</td><td class="text-end">${{ "%.0f"|format(order_total(order) or 0) }}</td><td>{{ order.order_status }}</td><td>{{ order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "-" }}</td></tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-secondary">尚無訂單。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

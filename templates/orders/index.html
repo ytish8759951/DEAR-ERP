@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">訂單管理</h1>
+    <div class="text-secondary">訂單查詢、新增、查看、編輯、列印、完成、退貨與取消</div>
+  </div>
+  <a class="btn btn-dark" href="{{ url_for('orders.create') }}">+新增訂單</a>
+</div>
+
+<section class="border rounded bg-white p-3 mb-4">
+  <form method="get" action="{{ url_for('orders.index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">訂單編號</label>
+        <input class="form-control" name="order_no" value="{{ filters.order_no }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">客戶編號</label>
+        <input class="form-control" name="customer_code" value="{{ filters.customer_code }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">客戶名稱</label>
+        <input class="form-control" name="customer_name" value="{{ filters.customer_name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">客源</label>
+        <select class="form-select" name="order_source_id">
+          <option value="">全部</option>
+          {% for source in order_sources %}
+            <option value="{{ source.id }}" {% if filters.order_source_id == source.id|string %}selected{% endif %}>{{ source.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">訂單狀態</label>
+        <select class="form-select" name="status">
+          <option value="">全部</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">日期起</label>
+        <input class="form-control" type="date" name="date_start" value="{{ filters.date_start }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">日期迄</label>
+        <input class="form-control" type="date" name="date_end" value="{{ filters.date_end }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+            <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('orders.index') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>訂單編號</th>
+        <th>客戶編號</th>
+        <th>客戶名稱</th>
+        <th>客源</th>
+        <th class="text-end">商品數量</th>
+        <th class="text-end">訂單金額</th>
+        <th>訂單狀態</th>
+        <th>建立時間</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td class="fw-semibold">{{ order.order_no }}</td>
+        <td>{{ order.customer.customer_code if order.customer else "-" }}</td>
+        <td>{{ order.customer.name if order.customer else "-" }}</td>
+        <td>{{ order.order_source.name if order.order_source else "-" }}</td>
+        <td class="text-end">{{ order.items|sum(attribute='quantity') }}</td>
+        <td class="text-end" title="商品總額 - 退貨金額 - 折扣 + 運費">${{ "%.0f"|format(amount_breakdowns[order.id].order_total or 0) }}</td>
+        <td>
+          {% set status_class = "secondary" %}
+          {% if order.status == "已付款" %}
+            {% set status_class = "success" %}
+          {% elif order.status == "預購中" %}
+            {% set status_class = "info" %}
+          {% elif order.status == "待出貨" %}
+            {% set status_class = "primary" %}
+          {% elif order.status == "已完成" %}
+            {% set status_class = "success" %}
+          {% elif order.status == "部分退貨" %}
+            {% set status_class = "warning" %}
+          {% elif order.status == "已退貨" %}
+            {% set status_class = "danger" %}
+          {% elif order.status == "已取消" %}
+            {% set status_class = "dark" %}
+          {% endif %}
+          <span class="badge text-bg-{{ status_class }}">{{ order.status }}</span>
+        </td>
+        <td>{{ order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "-" }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('orders.detail', order_id=order.id) }}">查看</a>
+          {% if order.status != "已取消" %}
+          <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#returnModal{{ order.id }}">退貨</button>
+          {% endif %}
+          {% if order.status not in ["已取消", "部分退貨", "已退貨", "已完成"] %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('orders.edit', order_id=order.id) }}">編輯</a>
+          {% endif %}
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('orders.print_order', order_id=order.id) }}" target="_blank">列印明細</a>
+          {% if can_complete_order(order) %}
+          <button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#completeModal{{ order.id }}">完成訂單</button>
+          {% endif %}
+          {% if order.status not in ["已取消", "已完成"] %}
+          <form class="d-inline" method="post" action="{{ url_for('orders.cancel', order_id=order.id) }}" onsubmit="return confirm('確定要取消此訂單？')">
+            <button class="btn btn-sm btn-outline-danger" type="submit">取消訂單</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-secondary py-5">尚無訂單資料</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% for order in orders %}
+  {% if order.status != "已取消" %}
+    {% set return_summary = return_summaries[order.id] %}
+    {% include "orders/_return_modal.html" %}
+  {% endif %}
+  {% if can_complete_order(order) %}
+  <div class="modal fade" id="completeModal{{ order.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">完成訂單</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">確認此訂單已交付給客戶？</div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <form method="post" action="{{ url_for('orders.complete', order_id=order.id) }}">
+            <button class="btn btn-success" type="submit">確認完成</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endfor %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">
+    共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁
+  </div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('orders.index', page=pagination.prev_num, per_page=pagination.per_page, order_no=filters.order_no, customer_code=filters.customer_code, customer_name=filters.customer_name, order_source_id=filters.order_source_id, status=filters.status, date_start=filters.date_start, date_end=filters.date_end) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('orders.index', page=pagination.next_num, per_page=pagination.per_page, order_no=filters.order_no, customer_code=filters.customer_code, customer_name=filters.customer_name, order_source_id=filters.order_source_id, status=filters.status, date_start=filters.date_start, date_end=filters.date_end) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endblock %}

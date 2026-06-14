@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">商品銷售查詢</h1>
+    <div class="text-secondary">查詢商品在 LINE 團購中的銷售、待貨與轉訂單數量</div>
+  </div>
+</div>
+
+<section class="border rounded bg-white p-3 mb-4">
+  <form method="get" action="{{ url_for('group_buys.sales') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">商品編號</label>
+        <input class="form-control" name="product_code" value="{{ filters.product_code }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">商品名稱</label>
+        <input class="form-control" name="product_name" value="{{ filters.product_name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">團購名稱</label>
+        <input class="form-control" name="group_buy_name" value="{{ filters.group_buy_name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">開始日期</label>
+        <input class="form-control" type="date" name="date_start" value="{{ filters.date_start }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">結束日期</label>
+        <input class="form-control" type="date" name="date_end" value="{{ filters.date_end }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">供貨模式</label>
+        <select class="form-select" name="supply_mode">
+          <option value="">全部</option>
+          <option value="一般商品" {% if filters.supply_mode == "一般商品" %}selected{% endif %}>一般商品</option>
+          <option value="出清商品" {% if filters.supply_mode == "出清商品" %}selected{% endif %}>出清商品</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">每頁筆數</label>
+        <select class="form-select" name="per_page">
+          {% for size in page_size_options %}
+          <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('group_buys.sales') }}">重設</a>
+        <button class="btn btn-dark" type="submit">查詢</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>商品編號</th>
+        <th>商品名稱</th>
+        <th class="text-end">參與團購數</th>
+        <th class="text-end">銷售件數</th>
+        <th class="text-end">待貨件數</th>
+        <th class="text-end">已轉訂單件數</th>
+        <th>供貨模式</th>
+        <th class="text-end">銷售金額</th>
+        <th>最後下單時間</th>
+        <th class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="fw-semibold">{{ row.product_code or "-" }}</td>
+        <td>{{ row.product_name or "-" }}</td>
+        <td class="text-end">{{ row.group_buy_count or 0 }}</td>
+        <td class="text-end">{{ row.sales_quantity or 0 }}</td>
+        <td class="text-end">{{ row.backorder_quantity or 0 }}</td>
+        <td class="text-end">{{ row.converted_quantity or 0 }}</td>
+        <td>{{ row.supply_mode or "-" }}</td>
+        <td class="text-end">${{ "%.0f"|format(row.sales_amount or 0) }}</td>
+        <td>{{ row.last_order_time.strftime("%Y-%m-%d %H:%M") if row.last_order_time else "-" }}</td>
+        <td class="text-end">
+          {% if row.product_id %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('group_buys.sales_detail', product_id=row.product_id, product_code=filters.product_code, product_name=filters.product_name, group_buy_name=filters.group_buy_name, date_start=filters.date_start, date_end=filters.date_end) }}">查看</a>
+          {% else %}
+          <span class="text-secondary small">無商品主檔</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-center text-secondary py-5">尚無商品銷售資料。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "group_buys/_pagination.html" %}
+{% endblock %}

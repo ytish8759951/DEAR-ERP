@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% macro product_thumb(product) %}
+  {% if product and product.image_path %}
+    <img class="order-product-thumb product-preview-trigger" src="{{ url_for('static', filename=product.image_path) }}" data-preview-src="{{ url_for('static', filename=product.image_path) }}" alt="{{ product.name }}">
+  {% else %}
+    <div class="order-product-thumb order-placeholder-thumb">無圖</div>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1">瑕疵庫存</h1>
+    <div class="text-secondary">依瑕疵退貨來源檢視待處理庫存。</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('operations.inventory') }}">庫存總覽</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('operations.inventory_logs') }}">庫存異動紀錄</a>
+  </div>
+</div>
+
+<form class="d-flex justify-content-end align-items-center gap-2 mb-3" method="get">
+  <label class="form-label mb-0">每頁</label>
+  <select class="form-select form-select-sm" name="per_page" onchange="this.form.submit()" style="width: 96px;">
+    {% for size in page_size_options %}
+      <option value="{{ size }}" {% if pagination.per_page == size %}selected{% endif %}>{{ size }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <thead class="table-light">
+      <tr>
+        <th>商品圖片</th>
+        <th>商品編號</th>
+        <th>商品名稱</th>
+        <th>顏色</th>
+        <th>尺寸</th>
+        <th class="text-end">瑕疵數量</th>
+        <th>來源訂單</th>
+        <th>退貨日期</th>
+        <th>退貨原因</th>
+        <th>備註</th>
+        <th>處理狀態</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in return_items %}
+      <tr>
+        <td>{{ product_thumb(item.product) }}</td>
+        <td class="fw-semibold">{{ item.product.sku if item.product else "-" }}</td>
+        <td>{{ item.product.name if item.product else "-" }}</td>
+        <td>{{ item.product_variant.color.name if item.product_variant and item.product_variant.color else "-" }}</td>
+        <td>{{ item.product_variant.size.name if item.product_variant and item.product_variant.size else "-" }}</td>
+        <td class="text-end">{{ item.quantity }}</td>
+        <td>{{ item.return_record.order.order_no if item.return_record and item.return_record.order else "-" }}</td>
+        <td>{{ item.return_record.created_at.strftime("%Y-%m-%d") if item.return_record and item.return_record.created_at else "-" }}</td>
+        <td>{{ item.reason or (item.return_record.reason if item.return_record else "") or "-" }}</td>
+        <td>{{ item.note or (item.return_record.note if item.return_record else "") or "-" }}</td>
+        <td><span class="badge text-bg-secondary">{{ item.process_status or "待處理" }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11" class="text-center text-secondary py-5">尚無瑕疵庫存資料</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="text-secondary small">共 {{ pagination.total }} 筆，第 {{ pagination.page }} / {{ pagination.pages or 1 }} 頁</div>
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('operations.defective_inventory', page=pagination.prev_num, per_page=pagination.per_page) }}">上一頁</a>
+      </li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('operations.defective_inventory', page=pagination.next_num, per_page=pagination.per_page) }}">下一頁</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+<div class="product-hover-preview order-hover-preview" id="productHoverPreview" data-preview-size="240" aria-hidden="true">
+  <img src="" alt="">
+</div>
+{% endblock %}
